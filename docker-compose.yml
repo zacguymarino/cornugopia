@@ -1,0 +1,13 @@
+services:
+  fastapi_app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app  # Allows live reloading when files change
+  
+  redis:
+    image: "redis:latest"
+    container_name: redis
+    ports:
+      - "6379:6379" 

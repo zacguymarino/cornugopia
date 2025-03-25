@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+  <title>Go</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+  <script>
+    const gameId = "{{ game_id }}";
+  </script>
+  <script defer src="{{ url_for('static', path='/board.js') }}"></script>
+</head>
+<body>
+  <div class="main-container">
+    <div class="board-section">
+      <canvas id="gameCanvas"></canvas>
+    </div>
+    
+    <div class="side-panel">
+      <div id="waitingMessage" class="message" style="display: none;">
+        Waiting for another player to join...
+      </div>
+
+      <div id="controls">
+        <button id="passBtn">Pass</button>
+        <button id="resignBtn" class="resign">Resign</button>
+      </div>
+
+      <div id="playerStatus">
+        <p id="playerColor">Your Color: <span></span></p>
+        <p id="turnIndicator">Turn: <span></span></p>
+      </div>
+      <div id="gameOverMessage" style="display: none; margin-top: 1em; text-align: center; font-weight: bold;">
+        <!-- Message will be injected via JavaScript -->
+      </div>
+    </div>
+  </div>
+</body>
+</html>

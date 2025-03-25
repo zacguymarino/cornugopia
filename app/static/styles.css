@@ -1,0 +1,104 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    font-family: Arial, sans-serif;
+    background-color: #f0f0f0;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+
+  #gameOverMessage {
+    background-color: #f0f0f0;
+    border: 2px solid #333;
+    padding: 1em;
+    border-radius: 8px;
+    font-size: 1.1em;
+    color: #333;
+    max-width: 90%;
+    margin: 1em auto 0 auto;
+}
+  
+  .main-container {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 20px;
+    box-sizing: border-box;
+    gap: 2rem;
+  }
+  
+  .board-section {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  
+  canvas {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    background-color: #fff;
+    border: 2px solid #333;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  }
+  
+  .side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    max-width: 300px;
+  }
+  
+  #controls button {
+    margin: 5px;
+    padding: 10px 15px;
+    font-size: 1rem;
+    border-radius: 6px;
+    border: none;
+    background-color: #333;
+    color: white;
+    cursor: pointer;
+  }
+  
+  #controls button.resign {
+    background-color: #d9534f;
+  }
+  
+  #controls button:hover {
+    opacity: 0.9;
+  }
+  
+  .message {
+    color: red;
+    font-weight: bold;
+    font-size: 1.1rem;
+  }
+  
+  #playerStatus p {
+    font-size: 1rem;
+    margin: 0;
+    color: #333;
+  }
+  
+  @media (max-width: 768px) {
+    .main-container {
+      flex-direction: column;
+      align-items: center;
+    }
+  
+    .side-panel {
+      width: 100%;
+      align-items: center;
+      text-align: center;
+    }
+  
+    #controls button {
+      width: 80%;
+    }
+  }
+  

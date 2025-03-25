@@ -1,0 +1,25 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+venv/
+.env.*
+.DS_Store
+*.sqlite3
+*.log
+
+# VSCode
+.vscode/
+
+# Docker
+*.pid
+*.sock
+*.db
+*.tar
+/mnt/
+/data/
+/node_modules/
+
+# Redis volume (if used)
+dump.rdb
