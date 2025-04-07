@@ -7,7 +7,7 @@ class Stone(Enum):
     WHITE = 2
 
 class GameState:
-    def __init__(self, board_size: int):
+    def __init__(self, board_size: int, time_control="none", komi=7.5):
         self.board_size = board_size
         self.players = {}
         self.board_state = [Stone.EMPTY.value] * (board_size * board_size)  # 1D board
@@ -24,50 +24,64 @@ class GameState:
         self.resigned_player = None
         self.white_score = 0
         self.black_score = 0
+        self.in_scoring_phase = False
+        self.dead_black = []
+        self.dead_white = []
+        self.finalized_players = []
+        self.time_control = time_control
+        self.time_left = {}
+        self.komi = komi
 
-    def score_game(self):
-        black_territory = 0
-        white_territory = 0
+    def mark_group_as_dead(self, index: int):
+        color = self.board_state[index]
+        if color == Stone.EMPTY.value:
+            return  # Nothing to mark
+
+        group = self.get_connected_group(index, color)
+        for i in group:
+            self.board_state[i] = Stone.EMPTY.value  # Remove the stones as if they were captured
+            if color == Stone.BLACK.value:
+                self.captured_white += 1
+            else:
+                self.captured_black += 1
+
+    def get_connected_group(self, start: int, color: int) -> set:
         visited = set()
-
-        for i in range(len(self.board_state)):  # Loop through the board
-            if self.board_state[i] == Stone.EMPTY.value and i not in visited:
-                owner, size = self.count_territory(i, visited)
-                if owner == Stone.BLACK:
-                    black_territory += size
-                elif owner == Stone.WHITE:
-                    white_territory += size
-
-        final_black_score = black_territory + self.captured_white
-        final_white_score = white_territory + self.captured_black
-
-        self.black_score = final_black_score
-        self.white_score = final_white_score
-
-    def count_territory(self, start: int, visited: set):
         stack = [start]
-        region = set()
-        bordering_colors = set()
-        visited.add(start)
 
         while stack:
             current = stack.pop()
-            region.add(current)
+            if current in visited:
+                continue
+            visited.add(current)
 
             for neighbor in self.get_adjacent_indices(current):
-                if neighbor in visited:
-                    continue
-
-                if self.board_state[neighbor] == Stone.EMPTY.value:
+                if self.board_state[neighbor] == color:
                     stack.append(neighbor)
-                    visited.add(neighbor)
-                else:
-                    bordering_colors.add(self.board_state[neighbor])  # Store bordering stones
 
-        # If only one color surrounds this region, it belongs to that player
-        if len(bordering_colors) == 1:
-            return Stone(list(bordering_colors)[0]), len(region)  # Owner, size of region
-        return Stone.EMPTY, 0  # Neutral territory
+        return visited
+
+    def finalize_score(self):
+        self.in_scoring_phase = False
+        self.final_score = self.score_game()
+        black_score, white_score = self.final_score
+
+        winner_color = (
+            Stone.BLACK if black_score > white_score
+            else Stone.WHITE if white_score > black_score
+            else None
+        )
+
+        if winner_color:
+            for pid, color_val in self.players.items():
+                if color_val == winner_color.value:
+                    self.winner = pid
+                    break
+        else:
+            self.winner = None
+
+        self.game_over = True
+        self.game_over_reason = "scored"
 
     def check_capture(self, index: int, color: Stone):
         opponent = Stone.BLACK if color == Stone.WHITE else Stone.WHITE
@@ -89,26 +103,16 @@ class GameState:
     def end_game(self, reason="double_pass", resigned_player=None):
         self.game_over = True
         self.game_over_reason = reason
-        if reason == "resign" and resigned_player:
+        if reason in ("resign", "timeout") and resigned_player:
+            if self.in_scoring_phase:
+                self.in_scoring_phase = False  # End scoring phase if resignation occurs
             self.resigned_player = resigned_player
             # Find the opponent by checking who is not the resigning player
             opponent_ids = [pid for pid in self.players if pid != resigned_player]
             self.winner = opponent_ids[0] if opponent_ids else None
 
         elif reason == "double_pass":
-            self.final_score = self.score_game()
-
-            # Determine winner from final score
-            black_score, white_score = self.final_score
-            winner_color = Stone.BLACK if black_score > white_score else Stone.WHITE if white_score > black_score else None
-            
-            if winner_color:
-                for pid, color_val in self.players.items():
-                    if color_val == winner_color.value:
-                        self.winner = pid
-                        break
-            else:
-                self.winner = None  # Tie
+            self.in_scoring_phase = True
 
     def make_move(self, index: int, color: Stone):
         if index == -2:
@@ -214,7 +218,18 @@ class GameState:
                     visited.add(neighbor)
         return len(liberties)
 
-    def score_game(self) -> tuple:
+    def score_game(self, dead_override=None) -> tuple:
+        if dead_override:
+            removed = []
+            for i in dead_override:
+                stone = self.board_state[i]
+                if stone == Stone.BLACK.value:
+                    self.captured_white += 1
+                elif stone == Stone.WHITE.value:
+                    self.captured_black += 1
+                removed.append((i, stone))
+                self.board_state[i] = Stone.EMPTY.value
+
         black_territory = 0
         white_territory = 0
         visited = set()
@@ -227,8 +242,9 @@ class GameState:
                 elif owner == Stone.WHITE:
                     white_territory += size
 
+
         final_black_score = black_territory + self.captured_white
-        final_white_score = white_territory + self.captured_black
+        final_white_score = white_territory + self.captured_black + self.komi
         return final_black_score, final_white_score
 
     def count_territory(self, start: int, visited: set) -> tuple:
@@ -285,7 +301,13 @@ class GameState:
             "captured_black": self.captured_black,
             "captured_white": self.captured_white,
             "winner": self.winner,
-            "final_score": self.final_score
+            "in_scoring_phase": self.in_scoring_phase,
+            "dead_black": self.dead_black,
+            "dead_white": self.dead_white,
+            "final_score": self.final_score,
+            "finalized_players": self.finalized_players,
+            "time_control": self.time_control,
+            "time_left": self.time_left
         }
 
     @staticmethod
@@ -303,5 +325,11 @@ class GameState:
         game.captured_black = data["captured_black"]
         game.captured_white = data["captured_white"]
         game.winner = data["winner"]
+        game.in_scoring_phase = data.get("in_scoring_phase", False)
+        game.dead_black = data.get("dead_black", [])
+        game.dead_white = data.get("dead_white", [])
         game.final_score = data["final_score"]
+        game.finalized_players = data.get("finalized_players", [])
+        game.time_control = data.get("time_control", "none")
+        game.time_left = data.get("time_left", {})
         return game

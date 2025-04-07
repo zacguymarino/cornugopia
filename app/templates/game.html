@@ -13,6 +13,13 @@
 </head>
 <body>
   <div class="main-container">
+    <div id="countdown" style="margin-top: 10px; font-weight: bold; color: #990033;"></div>
+    <div id="finalizeScoreMessageContainer" style="margin-top: 10px; font-weight: bold; color: #990033;"></div>
+    <div id="timers" style="margin-top: 10px;">
+      <p><strong>Black:</strong> <span id="blackTimer">--:--</span></p>
+      <p><strong>White:</strong> <span id="whiteTimer">--:--</span></p>
+    </div>
+    
     <div class="board-section">
       <canvas id="gameCanvas"></canvas>
     </div>
@@ -26,6 +33,8 @@
         <button id="passBtn">Pass</button>
         <button id="resignBtn" class="resign">Resign</button>
       </div>
+
+      <div id="finalizeScoreContainer"></div>
 
       <div id="playerStatus">
         <p id="playerColor">Your Color: <span></span></p>

@@ -4,7 +4,7 @@ html, body {
     height: 100%;
     width: 100%;
     font-family: Arial, sans-serif;
-    background-color: #f0f0f0;
+    background-color: #999999;
     box-sizing: border-box;
     overflow-x: hidden;
   }
@@ -63,6 +63,15 @@ html, body {
     background-color: #333;
     color: white;
     cursor: pointer;
+  }
+
+  #controls {
+    display: flex;
+    justify-content: space-around;
+  }
+
+  #controls button {
+    min-width: 49%;
   }
   
   #controls button.resign {

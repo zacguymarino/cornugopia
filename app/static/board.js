@@ -24,6 +24,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
             this.gameOverHandled = false;
 
+            this.myDead = new Set(); //My selected dead stones
+
+            this.theirDead = new Set(); //Opponent's selected dead stones
+
+            this.playerId = localStorage.getItem("zg_player_id");
+
             this.resizeCanvas();
             window.addEventListener("resize", () => this.resizeCanvas());
             this.canvas.addEventListener("click", (event) => this.handleClick(event));
@@ -37,15 +43,64 @@ document.addEventListener("DOMContentLoaded", function () {
                 console.log("Connected to WebSocket for game updates");
             };
 
-            this.socket.onmessage = (event) => {
+            this.socket.onmessage = async (event) => {
                 try {
-                    const gameState = JSON.parse(event.data);
-                    this.updateBoard(gameState);
+                    const message = JSON.parse(event.data);
+                    const countdownElement = document.getElementById("countdown");
+            
+                    switch (message.type) {
+                        case "disconnect_notice":
+                            let boardState = await getBoardState();
+                            if (boardState.game_over && !boardState.in_scoring_phase) {
+                                return; // Game is already over, no need to handle disconnection
+                            }
+                            const { timestamp, timeout_seconds } = message;
+                            const deadline = timestamp + timeout_seconds;
+
+                            if (countdownElement) {
+                                this.disconnectInterval = setInterval(() => {
+                                    const remaining = Math.max(0, Math.ceil(deadline - Date.now() / 1000));
+                                    countdownElement.textContent = `Opponent disconnected. They have ${remaining}s to reconnect.`;
+                        
+                                    if (remaining === 0) {
+                                        clearInterval(this.disconnectInterval);
+                                        this.disconnectInterval = null;
+                                        countdownElement.textContent = `Opponent forfeited by disconnection.`;
+                                    }
+                                }, 1000);
+                            }
+                            break;
+
+                        case "reconnect_notice":
+                            if (countdownElement) {
+                                countdownElement.textContent = "";
+                            }
+                            if (this.disconnectInterval) {
+                                clearInterval(this.disconnectInterval);
+                                this.disconnectInterval = null;
+                            }
+                            break;
+            
+                        case "game_state":
+                            this.updateBoard(message.payload);
+                            break;
+
+                        case "toggle_dead_stone":
+                            if (message.payload) {
+                                this.updateBoard(message.payload);
+                            } else {
+                                console.warn("toggle_dead_stone message missing payload.");
+                            }
+                            break;
+            
+                        default:
+                            console.warn("Unrecognized WebSocket message type:", message.type);
+                    }
                 } catch (error) {
                     console.error("Error parsing WebSocket message:", error);
                 }
             };
-
+            
             this.socket.onerror = (error) => {
                 console.error("WebSocket Error:", error);
             };
@@ -125,33 +180,67 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         }
 
-        /** Handle click event and attempt to place a stone */
         handleClick(event) {
-            const rect = this.canvas.getBoundingClientRect();
-            const x = event.clientX - rect.left;
-            const y = event.clientY - rect.top;
+            const index = this.getIndexFromClick(event);
+            if (index === null) return;
+        
+            if (this.inScoringPhase) {
+                const clickedStone = this.board[index];
+                if (clickedStone === Stone.EMPTY) {
+                    return; // Clicked on an empty space, do nothing
+                }
+            
+                const group = this.getStoneGroup(index);
+                const isGroupDead = [...group].every(i => this.myDead.has(i));
 
-            // Convert click position to board grid position
-            let gridX = Math.round(x / this.cellSize);
-            let gridY = Math.round(y / this.cellSize);
-
-            // Check if inside the playable area
-            if (gridX < 1 || gridX > this.size || gridY < 1 || gridY > this.size) {
-                return; // Ignore clicks outside of the board
+                if (isGroupDead) {
+                    group.forEach(i => this.myDead.delete(i));
+                } else {
+                    group.forEach(i => this.myDead.add(i));
+                }
+            
+                this.socket.send(JSON.stringify({
+                    type: "toggle_dead_stone",
+                    group: [...group],
+                    player_id: this.playerId
+                }));
+            
+                this.redrawStones();
+                this.drawDeadOverlays();
+                return;
             }
-
-            gridX -= 1; // Adjust to 0-based indexing
-            gridY -= 1;
-
-            const index = this.getIndex(gridX, gridY);
-
+        
             this.sendMove(index);
         }
+
+        drawDeadOverlays() {
+            this.ctx.save();
         
+            const all = new Set([...this.myDead, ...this.theirDead]);
+        
+            for (let index of all) {
+                const { x, y } = this.getCanvasCoords(index);
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, this.cellSize / 2.2, 0, 2 * Math.PI);
+        
+                if (this.myDead.has(index) && this.theirDead.has(index)) {
+                    this.ctx.strokeStyle = "green"; // agreement
+                } else if (this.myDead.has(index)) {
+                    this.ctx.strokeStyle = "red";
+                } else if (this.theirDead.has(index)) {
+                    this.ctx.strokeStyle = "blue";
+                }
+        
+                this.ctx.lineWidth = 2;
+                this.ctx.stroke();
+            }
+        
+            this.ctx.restore();
+        }        
 
         /** Send move data to the server */
         async sendMove(index) {
-            const playerId = sessionStorage.getItem("player_id");
+            const playerId = localStorage.getItem("zg_player_id");
 
             if (!playerId) {
                 alert("Error: No user ID found. Please rejoin the game.");
@@ -162,7 +251,7 @@ document.addEventListener("DOMContentLoaded", function () {
             const gameResponse = await fetch(`/game/${gameId}/state`);
             const gameData = await gameResponse.json();
 
-            if (!gameData.players || Object.keys(gameData.players).length < 2) {
+            if (index != -2 && (!gameData.players || Object.keys(gameData.players).length < 2)) {
                 alert("Waiting for another player to join...");
                 return;
             }
@@ -216,8 +305,91 @@ document.addEventListener("DOMContentLoaded", function () {
                 return Stone.EMPTY;
             });
 
+            this.inScoringPhase = gameState.in_scoring_phase;
+            const color = this.playerColor;
+
+            const deadBlack = gameState.dead_black || [];
+            const deadWhite = gameState.dead_white || [];
+
+            if (color === 1) {
+                this.myDead = new Set(deadBlack);
+                this.theirDead = new Set(deadWhite);
+            } else {
+                this.myDead = new Set(deadWhite);
+                this.theirDead = new Set(deadBlack);
+            }
+
             // 2. Redraw stones
             this.redrawStones();
+
+            if (this.inScoringPhase) {
+                this.drawDeadOverlays();
+
+                // Create button and message if they don't exist yet
+                let finalizeBtn = document.getElementById("finalizeScoreBtn");
+                let finalizeMsg = document.getElementById("finalizeScoreMessage");
+                if (!finalizeMsg) {
+                    finalizeMsg = document.createElement("span");
+                    finalizeMsg.id = "finalizeScoreMessage";
+                    finalizeMsg.textContent = "Both players need to select the dead stones and then finalize the score.";
+                    const container = document.getElementById("finalizeScoreMessageContainer");
+                    container.appendChild(finalizeMsg);
+                }
+                if (!finalizeBtn) {
+                    finalizeBtn = document.createElement("button");
+                    finalizeBtn.id = "finalizeScoreBtn";
+                    finalizeBtn.textContent = "Finalize Score";
+                    finalizeBtn.disabled = true;
+                    finalizeBtn.style.marginTop = "10px";
+                    finalizeBtn.style.padding = "6px 12px";
+                    finalizeBtn.style.fontSize = "16px";
+
+                    const container = document.getElementById("finalizeScoreContainer");
+                    container.appendChild(finalizeBtn);
+
+                    finalizeBtn.addEventListener("click", () => {
+                        console.log(this.playerId, "finalizing score...");
+                        this.socket.send(JSON.stringify({
+                            type: "finalize_score",
+                            player_id: this.playerId
+                        }));
+                        finalizeBtn.disabled = true;
+                        finalizeBtn.textContent = "Waiting for opponent...";
+                    });
+                }
+
+                // Check agreement between players
+                const myDead = color === 1 ? deadBlack : deadWhite;
+                const theirDead = color === 1 ? deadWhite : deadBlack;
+
+                const mySet = new Set(myDead);
+                const theirSet = new Set(theirDead);
+
+                const setsMatch =
+                    mySet.size === theirSet.size &&
+                    [...mySet].every(i => theirSet.has(i));
+
+                // Enable or disable the button based on agreement
+                if (!this.finalized) {
+                    finalizeBtn.disabled = !setsMatch;
+                }
+            } else {
+                let finalizeBtn = document.getElementById("finalizeScoreBtn");
+                let finalizeMsg = document.getElementById("finalizeScoreMessage");
+                // Check if both players have finalized
+                const finalizedPlayers = gameState.finalized_players || [];
+                const bothFinalized = finalizedPlayers.length === 2;
+
+                // Disable further toggling and hide finalize button
+                if (bothFinalized) {
+                    if (finalizeMsg) {
+                        finalizeMsg.remove();
+                    }
+                    if (finalizeBtn) {
+                        finalizeBtn.remove();
+                    }
+                }
+            }
 
             // 3. Update turn and color info
             this.currentTurn = gameState.current_turn;
@@ -235,7 +407,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 turnText.style.color = "gray";
             }
 
-            if (gameState.game_over && !this.gameOverHandled) {
+            if (gameState.game_over && !gameState.in_scoring_phase && !this.gameOverHandled) {
                 this.gameOverHandled = true; // Prevent multiple alerts
 
                 const messageDiv = document.getElementById("gameOverMessage");
@@ -243,7 +415,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 const score = gameState.final_score;
                 const reason = gameState.game_over_reason;
-                const playerId = sessionStorage.getItem("player_id");
             
                 if (reason === "resign") {
                     const resigningPlayer = gameState.resigned_player;
@@ -253,6 +424,14 @@ document.addEventListener("DOMContentLoaded", function () {
                     const resignDisplay = resignColor.charAt(0).toUpperCase() + resignColor.slice(1);
             
                     message = `Game over. ${resignDisplay} resigned. ${winnerColor} wins!`;
+                } else if (reason === "timeout") {
+                    const timedOutPlayer = gameState.resigned_player;
+                    const winner = gameState.winner;
+                    const timeoutColor = gameState.players[timedOutPlayer] === 1 ? "Black" : "White";
+                    const winnerColor = gameState.players[winner] === 1 ? "Black" : "White";
+                    const timeoutDisplay = timeoutColor.charAt(0).toUpperCase() + timeoutColor.slice(1);
+
+                    message = `Game over. ${timeoutDisplay} ran out of time. ${winnerColor} wins!`;
                 } else if (score) {
                     const [blackScore, whiteScore] = score;
                     const winner = blackScore > whiteScore ? "Black" : "White";
@@ -265,6 +444,90 @@ document.addEventListener("DOMContentLoaded", function () {
                 messageDiv.style.display = "block";
                 messageDiv.style.color = "#222";
             }
+
+            if (gameState.time_left) {
+                const blackTimer = document.getElementById("blackTimer");
+                const whiteTimer = document.getElementById("whiteTimer");
+            
+                const blackId = Object.keys(gameState.players).find(pid => gameState.players[pid] === 1);
+                const whiteId = Object.keys(gameState.players).find(pid => gameState.players[pid] === 2);
+            
+                const blackTime = gameState.time_left[blackId];
+                const whiteTime = gameState.time_left[whiteId];
+            
+                const formatTime = (seconds) => {
+                    const min = Math.floor(seconds / 60).toString().padStart(2, '0');
+                    const sec = (seconds % 60).toString().padStart(2, '0');
+                    return `${min}:${sec}`;
+                };
+            
+                if (blackTimer) blackTimer.textContent = blackTime !== undefined ? formatTime(blackTime) : "--:--";
+                if (whiteTimer) whiteTimer.textContent = whiteTime !== undefined ? formatTime(whiteTime) : "--:--";
+            }
+            
+        }
+
+        getIndexFromClick(event) {
+            const rect = this.canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+        
+            let gridX = Math.round(x / this.cellSize) - 1;
+            let gridY = Math.round(y / this.cellSize) - 1;
+        
+            if (gridX < 0 || gridX >= this.size || gridY < 0 || gridY >= this.size) {
+                return null; // Outside board
+            }
+        
+            return this.getIndex(gridX, gridY);
+        }
+
+        getCanvasCoords(index) {
+            const x = index % this.size;
+            const y = Math.floor(index / this.size);
+        
+            return {
+                x: (x + 1) * this.cellSize,
+                y: (y + 1) * this.cellSize
+            };
+        }
+
+        /** Find all connected stones of the same color starting from an index */
+        getStoneGroup(startIndex) {
+            const color = this.board[startIndex];
+            if (color === Stone.EMPTY) return new Set();
+
+            const visited = new Set();
+            const stack = [startIndex];
+
+            while (stack.length > 0) {
+                const index = stack.pop();
+                if (visited.has(index)) continue;
+                visited.add(index);
+
+                const neighbors = this.getAdjacentIndices(index);
+                for (const neighbor of neighbors) {
+                    if (this.board[neighbor] === color && !visited.has(neighbor)) {
+                        stack.push(neighbor);
+                    }
+                }
+            }
+
+            return visited;
+        }
+
+        getAdjacentIndices(index) {
+            const neighbors = [];
+            const size = this.size;
+            const row = Math.floor(index / size);
+            const col = index % size;
+        
+            if (row > 0) neighbors.push(index - size);       // up
+            if (row < size - 1) neighbors.push(index + size); // down
+            if (col > 0) neighbors.push(index - 1);           // left
+            if (col < size - 1) neighbors.push(index + 1);    // right
+        
+            return neighbors;
         }
     }
 
@@ -278,7 +541,7 @@ document.addEventListener("DOMContentLoaded", function () {
         
         let boardState = await getBoardState();
         let boardSize = boardState.board_size;
-        let playerId = sessionStorage.getItem("player_id");
+        let playerId = localStorage.getItem("zg_player_id");
         let playerColor = boardState.players[playerId];
     
         if (!boardSize) {
