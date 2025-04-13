@@ -31,6 +31,8 @@ class GameState:
         self.time_control = time_control
         self.time_left = {}
         self.komi = komi
+        self.moves = []
+        self.agreed_dead = []
 
     def mark_group_as_dead(self, index: int):
         color = self.board_state[index]
@@ -218,18 +220,7 @@ class GameState:
                     visited.add(neighbor)
         return len(liberties)
 
-    def score_game(self, dead_override=None) -> tuple:
-        if dead_override:
-            removed = []
-            for i in dead_override:
-                stone = self.board_state[i]
-                if stone == Stone.BLACK.value:
-                    self.captured_white += 1
-                elif stone == Stone.WHITE.value:
-                    self.captured_black += 1
-                removed.append((i, stone))
-                self.board_state[i] = Stone.EMPTY.value
-
+    def score_game(self) -> tuple:
         black_territory = 0
         white_territory = 0
         visited = set()
@@ -307,7 +298,9 @@ class GameState:
             "final_score": self.final_score,
             "finalized_players": self.finalized_players,
             "time_control": self.time_control,
-            "time_left": self.time_left
+            "time_left": self.time_left,
+            "moves": self.moves,
+            "agreed_dead": self.agreed_dead
         }
 
     @staticmethod
@@ -332,4 +325,6 @@ class GameState:
         game.finalized_players = data.get("finalized_players", [])
         game.time_control = data.get("time_control", "none")
         game.time_left = data.get("time_left", {})
+        game.moves = data.get("moves", [])
+        game.agreed_dead = data.get("agreed_dead", [])
         return game

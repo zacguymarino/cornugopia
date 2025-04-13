@@ -54,7 +54,7 @@ html, body {
     max-width: 300px;
   }
   
-  #controls button {
+  #actionButtons button {
     margin: 5px;
     padding: 10px 15px;
     font-size: 1rem;
@@ -65,20 +65,20 @@ html, body {
     cursor: pointer;
   }
 
-  #controls {
+  #actionButtons {
     display: flex;
     justify-content: space-around;
   }
 
-  #controls button {
+  #actionButtons button {
     min-width: 49%;
   }
   
-  #controls button.resign {
+  #actionButtons button.resign {
     background-color: #d9534f;
   }
   
-  #controls button:hover {
+  #actionButtons button:hover {
     opacity: 0.9;
   }
   
@@ -106,7 +106,7 @@ html, body {
       text-align: center;
     }
   
-    #controls button {
+    #actionButtons button {
       width: 80%;
     }
   }

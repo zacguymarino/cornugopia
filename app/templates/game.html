@@ -9,7 +9,8 @@
   <script>
     const gameId = "{{ game_id }}";
   </script>
-  <script defer src="{{ url_for('static', path='/board.js') }}"></script>
+  <script defer type="module" src="{{ url_for('static', path='/board.js') }}"></script>
+  <script defer src="{{ url_for('static', path='/sgf_exporter.js')}}"></script>
 </head>
 <body>
   <div class="main-container">
@@ -29,7 +30,9 @@
         Waiting for another player to join...
       </div>
 
-      <div id="controls">
+      <div id="controlsContainer"></div>
+
+      <div id="actionButtons">
         <button id="passBtn">Pass</button>
         <button id="resignBtn" class="resign">Resign</button>
       </div>
@@ -40,6 +43,9 @@
         <p id="playerColor">Your Color: <span></span></p>
         <p id="turnIndicator">Turn: <span></span></p>
       </div>
+
+      <button id="downloadSGF">Download SGF</button>
+
       <div id="gameOverMessage" style="display: none; margin-top: 1em; text-align: center; font-weight: bold;">
         <!-- Message will be injected via JavaScript -->
       </div>

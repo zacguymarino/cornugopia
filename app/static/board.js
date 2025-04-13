@@ -1,10 +1,6 @@
-document.addEventListener("DOMContentLoaded", function () {
+import { Stone, replayMovesUpTo, getConnectedGroup, isCaptured, getAdjacentIndices} from "./go_engine.js";
 
-    const Stone = Object.freeze({
-        EMPTY: 0,
-        BLACK: 1,
-        WHITE: 2
-    }); 
+document.addEventListener("DOMContentLoaded", function () {
 
     class GoBoard {
         constructor(canvasId, size = 19, playerColor) {
@@ -25,10 +21,13 @@ document.addEventListener("DOMContentLoaded", function () {
             this.gameOverHandled = false;
 
             this.myDead = new Set(); //My selected dead stones
-
             this.theirDead = new Set(); //Opponent's selected dead stones
 
             this.playerId = localStorage.getItem("zg_player_id");
+
+            //Game review stuff
+            this.reviewIndex = null;
+            this.originalGameState = null;
 
             this.resizeCanvas();
             window.addEventListener("resize", () => this.resizeCanvas());
@@ -189,8 +188,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (clickedStone === Stone.EMPTY) {
                     return; // Clicked on an empty space, do nothing
                 }
-            
-                const group = this.getStoneGroup(index);
+                
+                const group = getConnectedGroup(index, this.board, this.size);
                 const isGroupDead = [...group].every(i => this.myDead.has(i));
 
                 if (isGroupDead) {
@@ -272,15 +271,20 @@ document.addEventListener("DOMContentLoaded", function () {
             return y * this.size + x;
         }
 
-        /** Draw a stone on the board */
-        drawStone(gridX, gridY, color) {
+        /** Draw a stone on the board with optional opacity */
+        drawStone(gridX, gridY, color, opacity = 1.0) {
             const { ctx, cellSize } = this;
+            ctx.save();
+            ctx.globalAlpha = opacity;
+
             ctx.beginPath();
             ctx.arc(gridX * cellSize, gridY * cellSize, cellSize / 2.2, 0, Math.PI * 2);
             ctx.fillStyle = color;
             ctx.fill();
             ctx.strokeStyle = "black";
             ctx.stroke();
+
+            ctx.restore();
         }
 
         /** Redraw all stones on the board */
@@ -292,6 +296,77 @@ document.addEventListener("DOMContentLoaded", function () {
                     if (this.board[index] !== Stone.EMPTY) {
                         this.drawStone(x + 1, y + 1, this.board[index] === Stone.BLACK ? "black" : "white");
                     }
+                }
+            }
+        }
+
+        stepBack() {
+            if (this.reviewIndex > 0) {
+                this.reviewIndex--;
+
+                // Skip over end-game passes
+                const moves = this.originalGameState.moves || [];
+                while (
+                    this.reviewIndex > 0 &&
+                    moves[this.reviewIndex - 1]?.index === -1 &&
+                    moves[this.reviewIndex]?.index === -1
+                ) {
+                    this.reviewIndex--;
+                }
+
+                const result = replayMovesUpTo(this.originalGameState.moves, this.reviewIndex, this.size);
+                this.board = result.board;
+                this.capturedBlack = result.capturedBlack;
+                this.capturedWhite = result.capturedWhite;
+                this.currentTurn = result.currentTurn;
+                this.redrawStones();
+            }
+        }
+        
+        stepForward() {
+            const moves = this.originalGameState.moves || [];
+            const max = moves.length - 1;
+
+            if (this.reviewIndex < max) {
+                this.reviewIndex++;
+
+                // Skip over end-game passes
+                while (
+                    this.reviewIndex < max &&
+                    moves[this.reviewIndex - 1]?.index === -1 &&
+                    moves[this.reviewIndex]?.index === -1
+                ) {
+                    this.reviewIndex++;
+                }
+        
+                // If this is the final move again, re-show agreed dead
+                if (this.reviewIndex === max) {
+                    const result = replayMovesUpTo(moves, this.reviewIndex, this.size);
+                    this.board = result.board;
+                    this.capturedBlack = result.capturedBlack;
+                    this.capturedWhite = result.capturedWhite;
+                    this.currentTurn = result.currentTurn;
+                    
+                    const agreedDead = this.originalGameState.agreed_dead || [];
+                    for (const stone of agreedDead) {
+                        this.board[stone.index] = Stone.EMPTY;  // Remove it for redraw
+                    }
+    
+                    this.redrawStones();  // draw board first
+                    
+                    // Redraw agreed dead stones at half opacity
+                    for (const stone of agreedDead) {
+                        const boardPos = this.getBoardCoords(stone.index);
+                        const color = stone.color === 1 ? "black" : "white";
+                        this.drawStone(boardPos.x, boardPos.y, color, 0.5);
+                    }
+                } else {
+                    const result = replayMovesUpTo(this.originalGameState.moves, this.reviewIndex, this.size);
+                    this.board = result.board;
+                    this.capturedBlack = result.capturedBlack;
+                    this.capturedWhite = result.capturedWhite;
+                    this.currentTurn = result.currentTurn;
+                    this.redrawStones();
                 }
             }
         }
@@ -348,7 +423,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     container.appendChild(finalizeBtn);
 
                     finalizeBtn.addEventListener("click", () => {
-                        console.log(this.playerId, "finalizing score...");
                         this.socket.send(JSON.stringify({
                             type: "finalize_score",
                             player_id: this.playerId
@@ -369,10 +443,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     mySet.size === theirSet.size &&
                     [...mySet].every(i => theirSet.has(i));
 
-                // Enable or disable the button based on agreement
-                if (!this.finalized) {
-                    finalizeBtn.disabled = !setsMatch;
-                }
+                finalizeBtn.disabled = !setsMatch;
             } else {
                 let finalizeBtn = document.getElementById("finalizeScoreBtn");
                 let finalizeMsg = document.getElementById("finalizeScoreMessage");
@@ -443,9 +514,50 @@ document.addEventListener("DOMContentLoaded", function () {
                 messageDiv.innerHTML = message;
                 messageDiv.style.display = "block";
                 messageDiv.style.color = "#222";
+
+                // Hide pass and resign buttons
+                const actionButtons = document.getElementById("actionButtons");
+                if (actionButtons) {
+                    actionButtons.style.display = "none";
+                }
+
+                // Create review buttons container
+                const reviewContainer = document.getElementById("reviewButtons") || document.createElement("div");
+                reviewContainer.id = "reviewButtons";
+                reviewContainer.style.marginTop = "10px";
+
+                // Only add buttons if they don't already exist
+                if (!document.getElementById("prevMoveBtn")) {
+                    const prevBtn = document.createElement("button");
+                    prevBtn.id = "prevMoveBtn";
+                    prevBtn.textContent = "← Prev";
+                    prevBtn.style.marginRight = "10px";
+                    reviewContainer.appendChild(prevBtn);
+
+                    prevBtn.addEventListener("click", () => this.stepBack());
+                }
+
+                if (!document.getElementById("nextMoveBtn")) {
+                    const nextBtn = document.createElement("button");
+                    nextBtn.id = "nextMoveBtn";
+                    nextBtn.textContent = "Next →";
+                    reviewContainer.appendChild(nextBtn);
+
+                    nextBtn.addEventListener("click", () => this.stepForward());
+                }
+
+                document.getElementById("controlsContainer").appendChild(reviewContainer);
+
+                // Setup navigation parameters
+                this.reviewIndex = (gameState.moves || []).length;
+                this.originalGameState = gameState;
             }
 
-            if (gameState.time_left) {
+            if (gameState.time_control === "none") {
+                // Hide or remove timers from the DOM
+                const timers = document.getElementById("timers");
+                if (timers) timers.style.display = "none";
+            } else if (gameState.time_left) {
                 const blackTimer = document.getElementById("blackTimer");
                 const whiteTimer = document.getElementById("whiteTimer");
             
@@ -482,6 +594,16 @@ document.addEventListener("DOMContentLoaded", function () {
             return this.getIndex(gridX, gridY);
         }
 
+        getBoardCoords(index) {
+            const x = index % this.size;
+            const y = Math.floor(index / this.size);
+        
+            return {
+                x: x + 1,
+                y: y + 1
+            };
+        }
+
         getCanvasCoords(index) {
             const x = index % this.size;
             const y = Math.floor(index / this.size);
@@ -490,44 +612,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 x: (x + 1) * this.cellSize,
                 y: (y + 1) * this.cellSize
             };
-        }
-
-        /** Find all connected stones of the same color starting from an index */
-        getStoneGroup(startIndex) {
-            const color = this.board[startIndex];
-            if (color === Stone.EMPTY) return new Set();
-
-            const visited = new Set();
-            const stack = [startIndex];
-
-            while (stack.length > 0) {
-                const index = stack.pop();
-                if (visited.has(index)) continue;
-                visited.add(index);
-
-                const neighbors = this.getAdjacentIndices(index);
-                for (const neighbor of neighbors) {
-                    if (this.board[neighbor] === color && !visited.has(neighbor)) {
-                        stack.push(neighbor);
-                    }
-                }
-            }
-
-            return visited;
-        }
-
-        getAdjacentIndices(index) {
-            const neighbors = [];
-            const size = this.size;
-            const row = Math.floor(index / size);
-            const col = index % size;
-        
-            if (row > 0) neighbors.push(index - size);       // up
-            if (row < size - 1) neighbors.push(index + size); // down
-            if (col > 0) neighbors.push(index - 1);           // left
-            if (col < size - 1) neighbors.push(index + 1);    // right
-        
-            return neighbors;
         }
     }
 
@@ -567,6 +651,13 @@ document.addEventListener("DOMContentLoaded", function () {
             if (confirm("Are you sure you want to resign?")) {
                 goBoard.sendMove(-2);  // Resign
             }
+        });
+
+        document.getElementById("downloadSGF").addEventListener("click", async () => {
+            const gameId = window.location.pathname.split("/").pop();
+            const res = await fetch(`/game/${gameId}/state`);
+            const gameState = await res.json();
+            downloadSGF(gameState);
         });
     }
 

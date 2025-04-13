@@ -181,6 +181,11 @@ async def make_move(game_id: str, request: Request):
         # Attempt to make the move
         if game.is_valid_move(index, player_color):
             game.make_move(index, player_color)
+            game.moves.append({
+                "index": index,
+                "color": player_color.value,
+                "timestamp": time.time()
+            })
         else:
             raise HTTPException(status_code=400, detail="Invalid move")
 
@@ -338,10 +343,33 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str 
                         set(game.dead_black or []) == set(game.dead_white or []) and
                         len(game.finalized_players) == 2
                     ):
-                        # Use dead stones to calculate final score
-                        game.final_score = game.score_game(dead_override=game.dead_black)
+                        agreed = set(game.dead_black or [])
+
+                        # Store the agreed dead groups for frontend display
+                        game.agreed_dead = []
+                        for idx in agreed:
+                            color = game.board_state[idx]
+                            game.agreed_dead.append({
+                                "index": idx,
+                                "color": color
+                            })
+                            game.board_state[idx] = Stone.EMPTY.value  # remove from board
+
+                        game.final_score = game.score_game()
                         game.game_over = True
                         game.in_scoring_phase = False  # Exit scoring phase
+                        game.game_over_reason = "double_pass"
+
+                        # Determine winner from score
+                        black_score, white_score = game.final_score
+                        if black_score != white_score:
+                            winner_color = Stone.BLACK if black_score > white_score else Stone.WHITE
+                            for player_id, stone in game.players.items():
+                                if stone == winner_color.value:
+                                    game.winner = player_id
+                                    break
+                        else:
+                            game.winner = None  # Tie
 
                     # Save updated state and broadcast
                     redis_client.set(f"game:{game_id}", json.dumps(game.to_dict()))
