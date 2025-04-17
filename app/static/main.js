@@ -10,9 +10,10 @@ document.addEventListener("DOMContentLoaded", function () {
     /** Handle creating a new game */
     createGameBtn.addEventListener("click", async function () {
         const selectedSize = boardSizeSelect.value;
-        const selectedTimeControl = document.getElementById("timeControl").value; // new line
+        const selectedTimeControl = document.getElementById("timeControl").value;
         const existingPlayerId = localStorage.getItem("zg_player_id");
         const komiValue = parseFloat(document.getElementById("komiInput").value);
+        const ruleSet = document.getElementById("ruleSet").value;
 
         try {
             const response = await fetch("/create_game", {
@@ -22,7 +23,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     board_size: selectedSize,
                     time_control: selectedTimeControl,
                     komi: isNaN(komiValue) ? 7.5 : komiValue,
-                    ...(existingPlayerId && { player_id: existingPlayerId })
+                    ...(existingPlayerId && { player_id: existingPlayerId }),
+                    rule_set: ruleSet
                 })
             });
 
@@ -33,7 +35,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 localStorage.setItem("zg_player_id", data.player_id);
 
                 gameIdDisplay.textContent = `Game ID: ${data.game_id}`;
-                console.log(`Game created with ID: ${data.game_id}`);
             } else {
                 alert(data.detail || "Failed to create game.");
                 console.error("Error creating game:", data.detail || data.error);
@@ -86,5 +87,17 @@ document.addEventListener("DOMContentLoaded", function () {
             console.error("Error joining game:", error);
         }
     });
+
+    //Other Event listeners
+    document.getElementById("ruleSet").addEventListener("change", function () {
+        const komiInput = document.getElementById("komiInput");
+        const selectedRule = this.value;
+      
+        if (selectedRule === "japanese") {
+          komiInput.value = 6.5;
+        } else if (selectedRule === "chinese") {
+          komiInput.value = 7.5;
+        }
+      });
 
 });

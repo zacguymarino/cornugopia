@@ -49,9 +49,13 @@ async def create_game(request: Request):
         incoming_player_id = data.get("player_id")
         time_control = data.get("time_control", "none")
         komi = float(data.get("komi", 7.5))
+        rule_set = data.get("rule_set", "japanese")
 
         if board_size not in [9, 13, 19]:
             raise HTTPException(status_code=400, detail="Invalid board size")
+
+        if rule_set not in ["japanese", "chinese"]:
+            raise HTTPException(status_code=400, detail="Invalid rule set")
 
         valid_times = {"none", "300", "600", "900", "15"}
         if time_control not in valid_times:
@@ -65,7 +69,7 @@ async def create_game(request: Request):
 
         # Create a new game with time control
         game_id = str(uuid.uuid4())[:8]
-        game = GameState(board_size, time_control=time_control, komi=komi)
+        game = GameState(board_size, time_control=time_control, komi=komi, rule_set=rule_set)
 
         # Store game in Redis
         redis_client.setex(f"game:{game_id}", 120, json.dumps(game.to_dict()))
@@ -279,7 +283,7 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str 
             try:
                 message = json.loads(data)
 
-                # --- Handle dead stone toggling ---
+                # # --- Handle dead stone toggling & seki eyes for japanese scoring ---
                 if message["type"] == "toggle_dead_stone":
                     group = message.get("group", [])
                     pid = message["player_id"]
@@ -345,22 +349,42 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str 
                     ):
                         agreed = set(game.dead_black or [])
 
-                        # Store the agreed dead groups for frontend display
-                        game.agreed_dead = []
+                        # Split agreed into stones and excluded points
+                        removed_stones = []
+                        excluded_points = []
+
                         for idx in agreed:
                             color = game.board_state[idx]
-                            game.agreed_dead.append({
-                                "index": idx,
-                                "color": color
-                            })
-                            game.board_state[idx] = Stone.EMPTY.value  # remove from board
+                            if color in (Stone.BLACK.value, Stone.WHITE.value):
+                                removed_stones.append((idx, color))
+                                game.board_state[idx] = Stone.EMPTY.value
+                            elif color == Stone.EMPTY.value:
+                                excluded_points.append(idx)
+                            # Increase captured count based on the color
+                            if color == Stone.BLACK.value:
+                                game.captured_white += 1
+                            elif color == Stone.WHITE.value:
+                                game.captured_black += 1
 
-                        game.final_score = game.score_game()
+                        # Save for frontend review
+                        game.agreed_dead = [
+                            {"index": idx, "color": color}
+                            for idx, color in removed_stones
+                        ]
+                        game.excluded_points = excluded_points
+
+                        # Score the game based on rule set
+                        rule_set = getattr(game, "rule_set", "japanese").lower()
+                        if rule_set == "japanese":
+                            game.final_score = game.score_game(excluded=excluded_points)
+                        else:
+                            game.final_score = game.score_game()  # No exclusions for Chinese rules
+
                         game.game_over = True
-                        game.in_scoring_phase = False  # Exit scoring phase
+                        game.in_scoring_phase = False
                         game.game_over_reason = "double_pass"
 
-                        # Determine winner from score
+                        # Determine winner
                         black_score, white_score = game.final_score
                         if black_score != white_score:
                             winner_color = Stone.BLACK if black_score > white_score else Stone.WHITE
@@ -369,9 +393,9 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str 
                                     game.winner = player_id
                                     break
                         else:
-                            game.winner = None  # Tie
+                            game.winner = None
 
-                    # Save updated state and broadcast
+                    # Broadcast update
                     redis_client.set(f"game:{game_id}", json.dumps(game.to_dict()))
                     redis_client.publish(
                         f"game_updates:{game_id}",
@@ -380,7 +404,6 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str 
                             "payload": game.to_dict()
                         })
                     )
-
             except Exception as e:
                 print(f"Error handling WebSocket message: {e}")
 

@@ -3,9 +3,11 @@ import { Stone, replayMovesUpTo, getConnectedGroup, isCaptured, getAdjacentIndic
 document.addEventListener("DOMContentLoaded", function () {
 
     class GoBoard {
-        constructor(canvasId, size = 19, playerColor) {
+        constructor(canvasId, size = 19, playerColor, ruleSet) {
             this.size = size;
             this.board = new Array(size * size).fill(Stone.EMPTY);
+
+            this.ruleSet = ruleSet || "japanese";
 
             this.playerColor = playerColor;
 
@@ -162,13 +164,15 @@ document.addEventListener("DOMContentLoaded", function () {
                 ];
             } else if (size === 13) {
                 starCoords = [
-                    [4, 4], [4, 10],
-                    [10, 4], [10, 10]
+                    [4, 4], [4, 7], [4, 10],
+                    [7, 4], [7, 7], [7, 10],
+                    [10, 4], [10, 7], [10, 10]
                 ];
             } else if (size === 9) {
                 starCoords = [
-                    [3, 3], [3, 7],
-                    [7, 3], [7, 7]
+                    [3, 3], [3, 5], [3, 7],
+                    [5, 3], [5, 5], [5, 7],
+                    [7, 3], [7, 5], [7, 7]
                 ];
             }
 
@@ -185,27 +189,46 @@ document.addEventListener("DOMContentLoaded", function () {
         
             if (this.inScoringPhase) {
                 const clickedStone = this.board[index];
-                if (clickedStone === Stone.EMPTY) {
-                    return; // Clicked on an empty space, do nothing
+
+                // Japanese rules: allow toggling empty points
+                if (clickedStone === Stone.EMPTY && this.ruleSet === "japanese") {
+                    if (this.myDead.has(index)) {
+                        this.myDead.delete(index);
+                    } else {
+                        this.myDead.add(index);
+                    }
+
+                    this.socket.send(JSON.stringify({
+                        type: "toggle_dead_stone",
+                        group: [index],
+                        player_id: this.playerId
+                    }));
+
+                    this.redrawStones();
+                    this.drawDeadOverlays();
+                    return;
+                }
+
+                // Normal stone toggling
+                if (clickedStone !== Stone.EMPTY) {
+                    const group = getConnectedGroup(index, this.board, this.size);
+                    const isGroupDead = [...group].every(i => this.myDead.has(i));
+
+                    if (isGroupDead) {
+                        group.forEach(i => this.myDead.delete(i));
+                    } else {
+                        group.forEach(i => this.myDead.add(i));
+                    }
+                    this.socket.send(JSON.stringify({
+                        type: "toggle_dead_stone",
+                        group: [...group],
+                        player_id: this.playerId
+                    }));
+
+                    this.redrawStones();
+                    this.drawDeadOverlays();
                 }
                 
-                const group = getConnectedGroup(index, this.board, this.size);
-                const isGroupDead = [...group].every(i => this.myDead.has(i));
-
-                if (isGroupDead) {
-                    group.forEach(i => this.myDead.delete(i));
-                } else {
-                    group.forEach(i => this.myDead.add(i));
-                }
-            
-                this.socket.send(JSON.stringify({
-                    type: "toggle_dead_stone",
-                    group: [...group],
-                    player_id: this.playerId
-                }));
-            
-                this.redrawStones();
-                this.drawDeadOverlays();
                 return;
             }
         
@@ -219,23 +242,68 @@ document.addEventListener("DOMContentLoaded", function () {
         
             for (let index of all) {
                 const { x, y } = this.getCanvasCoords(index);
-                this.ctx.beginPath();
-                this.ctx.arc(x, y, this.cellSize / 2.2, 0, 2 * Math.PI);
+                const radius = this.cellSize / 2.2;
         
-                if (this.myDead.has(index) && this.theirDead.has(index)) {
-                    this.ctx.strokeStyle = "green"; // agreement
-                } else if (this.myDead.has(index)) {
+                const agreed = this.myDead.has(index) && this.theirDead.has(index);
+                const mineOnly = this.myDead.has(index);
+                const theirsOnly = this.theirDead.has(index);
+        
+                // Set color
+                if (agreed) {
+                    this.ctx.strokeStyle = "green";
+                } else if (mineOnly) {
                     this.ctx.strokeStyle = "red";
-                } else if (this.theirDead.has(index)) {
+                } else if (theirsOnly) {
                     this.ctx.strokeStyle = "blue";
                 }
         
                 this.ctx.lineWidth = 2;
-                this.ctx.stroke();
+        
+                if (this.board[index] === Stone.EMPTY) {
+                    // Draw X for excluded empty point
+                    const offset = radius * 0.7;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x - offset, y - offset);
+                    this.ctx.lineTo(x + offset, y + offset);
+                    this.ctx.moveTo(x + offset, y - offset);
+                    this.ctx.lineTo(x - offset, y + offset);
+                    this.ctx.stroke();
+                } else {
+                    // Draw circle for dead stones
+                    this.ctx.beginPath();
+                    this.ctx.arc(x, y, radius, 0, 2 * Math.PI);
+                    this.ctx.stroke();
+                }
             }
         
             this.ctx.restore();
-        }        
+        }
+        
+
+        // drawDeadOverlays() {
+        //     this.ctx.save();
+        
+        //     const all = new Set([...this.myDead, ...this.theirDead]);
+        
+        //     for (let index of all) {
+        //         const { x, y } = this.getCanvasCoords(index);
+        //         this.ctx.beginPath();
+        //         this.ctx.arc(x, y, this.cellSize / 2.2, 0, 2 * Math.PI);
+        
+        //         if (this.myDead.has(index) && this.theirDead.has(index)) {
+        //             this.ctx.strokeStyle = "green"; // agreement
+        //         } else if (this.myDead.has(index)) {
+        //             this.ctx.strokeStyle = "red";
+        //         } else if (this.theirDead.has(index)) {
+        //             this.ctx.strokeStyle = "blue";
+        //         }
+        
+        //         this.ctx.lineWidth = 2;
+        //         this.ctx.stroke();
+        //     }
+        
+        //     this.ctx.restore();
+        // }        
 
         /** Send move data to the server */
         async sendMove(index) {
@@ -282,6 +350,28 @@ document.addEventListener("DOMContentLoaded", function () {
             ctx.fillStyle = color;
             ctx.fill();
             ctx.strokeStyle = "black";
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        /** Draw an X mark on the board with optional color and opacity */
+        drawX(gridX, gridY, color = "black", opacity = 1.0) {
+            const { ctx, cellSize } = this;
+            const half = cellSize / 2.2;
+            const centerX = gridX * cellSize;
+            const centerY = gridY * cellSize;
+
+            ctx.save();
+            ctx.globalAlpha = opacity;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+
+            ctx.beginPath();
+            ctx.moveTo(centerX - half, centerY - half);
+            ctx.lineTo(centerX + half, centerY + half);
+            ctx.moveTo(centerX - half, centerY + half);
+            ctx.lineTo(centerX + half, centerY - half);
             ctx.stroke();
 
             ctx.restore();
@@ -348,6 +438,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     this.currentTurn = result.currentTurn;
                     
                     const agreedDead = this.originalGameState.agreed_dead || [];
+                    const excludedPoints = this.originalGameState.excluded_points || [];
+
                     for (const stone of agreedDead) {
                         this.board[stone.index] = Stone.EMPTY;  // Remove it for redraw
                     }
@@ -359,6 +451,11 @@ document.addEventListener("DOMContentLoaded", function () {
                         const boardPos = this.getBoardCoords(stone.index);
                         const color = stone.color === 1 ? "black" : "white";
                         this.drawStone(boardPos.x, boardPos.y, color, 0.5);
+                    }
+                    // Redraw excluded points as Xs
+                    for (const index of excludedPoints) {
+                        const boardPos = this.getBoardCoords(index);
+                        this.drawX(boardPos.x, boardPos.y, "black", 0.5);
                     }
                 } else {
                     const result = replayMovesUpTo(this.originalGameState.moves, this.reviewIndex, this.size);
@@ -406,7 +503,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (!finalizeMsg) {
                     finalizeMsg = document.createElement("span");
                     finalizeMsg.id = "finalizeScoreMessage";
-                    finalizeMsg.textContent = "Both players need to select the dead stones and then finalize the score.";
+                    if (gameState.ruleSet === "japanese") {
+                        finalizeMsg.textContent = "Select dead stones and seki territory to finalize the score.";
+                    } else {
+                        finalizeMsg.textContent = "Select dead stones to finalize the score.";
+                    }
                     const container = document.getElementById("finalizeScoreMessageContainer");
                     container.appendChild(finalizeMsg);
                 }
@@ -627,6 +728,7 @@ document.addEventListener("DOMContentLoaded", function () {
         let boardSize = boardState.board_size;
         let playerId = localStorage.getItem("zg_player_id");
         let playerColor = boardState.players[playerId];
+        let ruleSet = boardState.rule_set;
     
         if (!boardSize) {
             console.error("Error: Failed to fetch board size.");
@@ -637,8 +739,13 @@ document.addEventListener("DOMContentLoaded", function () {
             console.error("Error: Failed to fetch player's color.");
             return;
         }
+
+        if (!ruleSet) {
+            console.error("Error: Failed to fetch rule set.");
+            return;
+        }
     
-        const goBoard = new GoBoard("gameCanvas", boardSize, playerColor);
+        const goBoard = new GoBoard("gameCanvas", boardSize, playerColor, ruleSet);
         goBoard.connectWebSocket(gameId, playerId);
         goBoard.updateBoard(boardState);
 

@@ -7,7 +7,7 @@ class Stone(Enum):
     WHITE = 2
 
 class GameState:
-    def __init__(self, board_size: int, time_control="none", komi=7.5):
+    def __init__(self, board_size: int, time_control="none", komi=7.5, rule_set="japanese"):
         self.board_size = board_size
         self.players = {}
         self.board_state = [Stone.EMPTY.value] * (board_size * board_size)  # 1D board
@@ -33,6 +33,8 @@ class GameState:
         self.komi = komi
         self.moves = []
         self.agreed_dead = []
+        self.excluded_points = []
+        self.rule_set = rule_set
 
     def mark_group_as_dead(self, index: int):
         color = self.board_state[index]
@@ -220,25 +222,57 @@ class GameState:
                     visited.add(neighbor)
         return len(liberties)
 
-    def score_game(self) -> tuple:
+    def score_game(self, excluded: list[int] = None) -> tuple:
         black_territory = 0
         white_territory = 0
         visited = set()
+        excluded = set(excluded or [])
 
         for i in range(self.board_size * self.board_size):
+            if i in excluded:
+                continue  # Skip seki points excluded from scoring (Japanese only)
+
             if self.board_state[i] == Stone.EMPTY.value and i not in visited:
-                owner, size = self.count_territory(i, visited)
+                owner, size = self.count_territory(i, visited, excluded)
                 if owner == Stone.BLACK:
                     black_territory += size
                 elif owner == Stone.WHITE:
                     white_territory += size
 
+        if self.rule_set == "japanese":
+            # Japanese rules: territory + captured prisoners
+            final_black_score = black_territory + self.captured_white
+            final_white_score = white_territory + self.captured_black + self.komi
+        else:
+            # Chinese rules: territory + number of living stones (area scoring)
+            black_stones = sum(1 for s in self.board_state if s == Stone.BLACK.value)
+            white_stones = sum(1 for s in self.board_state if s == Stone.WHITE.value)
 
-        final_black_score = black_territory + self.captured_white
-        final_white_score = white_territory + self.captured_black + self.komi
+            final_black_score = black_territory + black_stones
+            final_white_score = white_territory + white_stones + self.komi
+
         return final_black_score, final_white_score
 
-    def count_territory(self, start: int, visited: set) -> tuple:
+
+    # def score_game(self) -> tuple:
+    #     black_territory = 0
+    #     white_territory = 0
+    #     visited = set()
+
+    #     for i in range(self.board_size * self.board_size):
+    #         if self.board_state[i] == Stone.EMPTY.value and i not in visited:
+    #             owner, size = self.count_territory(i, visited)
+    #             if owner == Stone.BLACK:
+    #                 black_territory += size
+    #             elif owner == Stone.WHITE:
+    #                 white_territory += size
+
+
+    #     final_black_score = black_territory + self.captured_white
+    #     final_white_score = white_territory + self.captured_black + self.komi
+    #     return final_black_score, final_white_score
+
+    def count_territory(self, start: int, visited: set, excluded: set) -> tuple:
         stack = [start]
         region = set()
         bordering_colors = set()
@@ -249,7 +283,7 @@ class GameState:
             region.add(current)
 
             for neighbor in self.get_adjacent_indices(current):
-                if neighbor in visited:
+                if neighbor in visited or neighbor in excluded:
                     continue
 
                 if self.board_state[neighbor] == Stone.EMPTY.value:
@@ -300,7 +334,10 @@ class GameState:
             "time_control": self.time_control,
             "time_left": self.time_left,
             "moves": self.moves,
-            "agreed_dead": self.agreed_dead
+            "agreed_dead": self.agreed_dead,
+            "excluded_points": self.excluded_points,
+            "rule_set": self.rule_set,
+            "komi": self.komi
         }
 
     @staticmethod
@@ -327,4 +364,7 @@ class GameState:
         game.time_left = data.get("time_left", {})
         game.moves = data.get("moves", [])
         game.agreed_dead = data.get("agreed_dead", [])
+        game.excluded_points = data.get("excluded_points", [])
+        game.rule_set = data.get("rule_set", "japanese")
+        game.komi = data.get("komi", 7.5)
         return game

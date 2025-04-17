@@ -10,7 +10,7 @@
   </head>
   <body>
     <div>
-      <h1>Welcome to Online Go</h1>
+      <h1>Cornugopia</h1>
 
       <!-- Create Game -->
       <div>
@@ -20,6 +20,7 @@
           <option value="13">13x13</option>
           <option value="9">9x9</option>
         </select>
+      
         <label for="timeControl" style="margin-left: 10px;">Time Control:</label>
         <select id="timeControl">
           <option value="none">None (casual)</option>
@@ -28,19 +29,27 @@
           <option value="600">10 minutes</option>
           <option value="900">15 minutes</option>
           <option value="1800">30 minutes</option>
-          <option value="5m+10s">5m + 10s byo-yomi</option>
-          <option value="10m+5s">10m + 5s byo-yomi</option>
-          <!-- You can tweak/add presets here -->
+          <option value="3600">1 hour</option>
+          <option value="7200">2 hours</option>
         </select>
+      
+        <label for="ruleSet" style="margin-left: 10px;">Scoring Rules:</label>
+        <select id="ruleSet">
+          <option value="japanese" selected>Japanese</option>
+          <option value="chinese">Chinese</option>
+        </select>
+
         <label for="komiInput">Komi (points for White):</label>
         <input
           type="number"
           id="komiInput"
-          value="7.5"
+          value="6.5"
           step="1"
           min="0.5"
+          max="50.5"
           style="width: 60px;"
         />
+      
         <button id="createGameBtn">Create Game</button>
         <p id="gameIdDisplay"></p> <!-- Will display the created game ID -->
       </div>
