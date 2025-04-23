@@ -7,7 +7,7 @@ class Stone(Enum):
     WHITE = 2
 
 class GameState:
-    def __init__(self, board_size: int, time_control="none", komi=7.5, rule_set="japanese"):
+    def __init__(self, board_size: int, time_control="none", komi=6.5, rule_set="japanese"):
         self.board_size = board_size
         self.players = {}
         self.board_state = [Stone.EMPTY.value] * (board_size * board_size)  # 1D board
@@ -380,5 +380,5 @@ class GameState:
         game.agreed_dead = data.get("agreed_dead", [])
         game.excluded_points = data.get("excluded_points", [])
         game.rule_set = data.get("rule_set", "japanese")
-        game.komi = data.get("komi", 7.5)
+        game.komi = data.get("komi", 6.5)
         return game

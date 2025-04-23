@@ -93,6 +93,10 @@ document.addEventListener("DOMContentLoaded", function () {
                                 console.warn("toggle_dead_stone message missing payload.");
                             }
                             break;
+
+                        case "chat":
+                            this.appendChatMessage(message.sender, message.text);
+                            break;
             
                         default:
                             console.warn("Unrecognized WebSocket message type:", message.type);
@@ -278,32 +282,6 @@ document.addEventListener("DOMContentLoaded", function () {
         
             this.ctx.restore();
         }
-        
-
-        // drawDeadOverlays() {
-        //     this.ctx.save();
-        
-        //     const all = new Set([...this.myDead, ...this.theirDead]);
-        
-        //     for (let index of all) {
-        //         const { x, y } = this.getCanvasCoords(index);
-        //         this.ctx.beginPath();
-        //         this.ctx.arc(x, y, this.cellSize / 2.2, 0, 2 * Math.PI);
-        
-        //         if (this.myDead.has(index) && this.theirDead.has(index)) {
-        //             this.ctx.strokeStyle = "green"; // agreement
-        //         } else if (this.myDead.has(index)) {
-        //             this.ctx.strokeStyle = "red";
-        //         } else if (this.theirDead.has(index)) {
-        //             this.ctx.strokeStyle = "blue";
-        //         }
-        
-        //         this.ctx.lineWidth = 2;
-        //         this.ctx.stroke();
-        //     }
-        
-        //     this.ctx.restore();
-        // }        
 
         /** Send move data to the server */
         async sendMove(index) {
@@ -467,6 +445,24 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
             }
         }
+
+        appendChatMessage(sender, text) {
+            const chatBox = document.getElementById("chatMessages");
+            const msgDiv = document.createElement("div");
+            const msgSpan = document.createElement("span");
+            msgSpan.textContent = text;
+
+            if ((sender === "Black" && this.playerColor === 1) || 
+                (sender === "White" && this.playerColor === 2)) {
+                msgSpan.classList.add("chat-outgoing");
+            } else {
+                msgSpan.classList.add("chat-incoming");
+            }
+
+            msgDiv.appendChild(msgSpan);
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        };
 
         /** Update the board state and UI */
         updateBoard(gameState) {
@@ -714,6 +710,16 @@ document.addEventListener("DOMContentLoaded", function () {
                 y: (y + 1) * this.cellSize
             };
         }
+
+        addChatHint() {
+            const roleHint = document.createElement("div");
+            roleHint.textContent = `Welcome to the chat. Your messages appear on the right in blue.`;
+            roleHint.style.fontStyle = "italic";
+            roleHint.style.marginBottom = "6px";
+            roleHint.style.color = "#555";
+
+            document.getElementById("chatMessages").appendChild(roleHint);
+        }
     }
 
     async function initializeGame() {
@@ -749,6 +755,9 @@ document.addEventListener("DOMContentLoaded", function () {
         goBoard.connectWebSocket(gameId, playerId);
         goBoard.updateBoard(boardState);
 
+        //Add chat box hint
+        goBoard.addChatHint();
+
         // Button handlers
         document.getElementById("passBtn").addEventListener("click", () => {
             goBoard.sendMove(-1);  // Pass
@@ -765,6 +774,27 @@ document.addEventListener("DOMContentLoaded", function () {
             const res = await fetch(`/game/${gameId}/state`);
             const gameState = await res.json();
             downloadSGF(gameState);
+        });
+
+        const input = document.getElementById("chatInput");
+        input.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                document.getElementById("sendChatBtn").click();
+            }
+        });
+
+        document.getElementById("sendChatBtn").addEventListener("click", () => {
+            const input = document.getElementById("chatInput");
+            const text = input.value.trim();
+            if (text && goBoard.socket) {
+              goBoard.socket.send(JSON.stringify({
+                type: "chat",
+                player_id: goBoard.playerId,
+                text: text
+              }));
+              input.value = "";
+            }
         });
     }
 

@@ -23,7 +23,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 body: JSON.stringify({
                     board_size: selectedSize,
                     time_control: selectedTimeControl,
-                    komi: isNaN(komiValue) ? 7.5 : komiValue,
+                    komi: isNaN(komiValue) ? 6.5 : komiValue,
                     ...(existingPlayerId && { player_id: existingPlayerId }),
                     rule_set: ruleSet,
                     color_preference: colorPreference

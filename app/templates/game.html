@@ -14,17 +14,19 @@
 </head>
 <body>
   <div class="main-container">
-    <div id="countdown" style="margin-top: 10px; font-weight: bold; color: #990033;"></div>
-    <div id="finalizeScoreMessageContainer" style="margin-top: 10px; font-weight: bold; color: #990033;"></div>
-    <div id="timers" style="margin-top: 10px;">
-      <p><strong>Black:</strong> <span id="blackTimer">--:--</span></p>
-      <p><strong>White:</strong> <span id="whiteTimer">--:--</span></p>
-    </div>
-    
     <div class="board-section">
+      <div id="countdown" style="margin-top: 0; font-weight: bold; color: #990033;"></div>
+      <div id="finalizeScoreMessageContainer" style="margin-top: 5px; font-weight: bold; color: #990033;"></div>
+      <div id="timers" style="margin-top: 5px;">
+        <span>
+          <strong>Black:</strong> <span id="blackTimer">--:--</span>
+          &nbsp;&nbsp;
+          <strong>White:</strong> <span id="whiteTimer">--:--</span>
+        </span>
+      </div>
       <canvas id="gameCanvas"></canvas>
     </div>
-    
+
     <div class="side-panel">
       <div id="waitingMessage" class="message" style="display: none;">
         Waiting for another player to join...
@@ -46,8 +48,16 @@
 
       <button id="downloadSGF">Download SGF</button>
 
-      <div id="gameOverMessage" style="display: none; margin-top: 1em; text-align: center; font-weight: bold;">
+      <div id="gameOverMessage">
         <!-- Message will be injected via JavaScript -->
+      </div>
+
+      <div id="chatContainer">
+        <div id="chatMessages"></div>
+        <div id="chatControls">
+          <input type="text" id="chatInput" placeholder="Type a message..." />
+          <button id="sendChatBtn">Send</button>
+        </div>
       </div>
     </div>
   </div>

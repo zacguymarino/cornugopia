@@ -1,6 +1,6 @@
 function generateSGF(gameState) {
     const size = gameState.board_size;
-    const komi = gameState.komi || 7.5;
+    const komi = gameState.komi || 6.5;
     const moves = gameState.moves || [];
 
     const getColor = (value) => value === 1 ? 'B' : 'W';
