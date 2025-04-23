@@ -35,6 +35,19 @@ class GameState:
         self.agreed_dead = []
         self.excluded_points = []
         self.rule_set = rule_set
+        self.created_by = None
+        self.color_preference = "random"
+        self.colors_randomized = False
+
+    def set_colors_randomized(self, randomized: bool):
+        self.colors_randomized = bool(randomized)
+
+    def set_created_by(self, player_id: str):
+        self.created_by = player_id
+
+    def set_color_preference(self, preference: str):
+        if preference in ["black", "white", "random"]:
+            self.color_preference = preference
 
     def mark_group_as_dead(self, index: int):
         color = self.board_state[index]
@@ -337,7 +350,8 @@ class GameState:
             "agreed_dead": self.agreed_dead,
             "excluded_points": self.excluded_points,
             "rule_set": self.rule_set,
-            "komi": self.komi
+            "komi": self.komi,
+            "colors_randomized": self.colors_randomized
         }
 
     @staticmethod

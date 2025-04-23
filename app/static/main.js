@@ -14,6 +14,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const existingPlayerId = localStorage.getItem("zg_player_id");
         const komiValue = parseFloat(document.getElementById("komiInput").value);
         const ruleSet = document.getElementById("ruleSet").value;
+        const colorPreference = document.getElementById("colorPreference").value;
 
         try {
             const response = await fetch("/create_game", {
@@ -24,7 +25,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     time_control: selectedTimeControl,
                     komi: isNaN(komiValue) ? 7.5 : komiValue,
                     ...(existingPlayerId && { player_id: existingPlayerId }),
-                    rule_set: ruleSet
+                    rule_set: ruleSet,
+                    color_preference: colorPreference
                 })
             });
 

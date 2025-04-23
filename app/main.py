@@ -50,6 +50,7 @@ async def create_game(request: Request):
         time_control = data.get("time_control", "none")
         komi = float(data.get("komi", 7.5))
         rule_set = data.get("rule_set", "japanese")
+        color_preference = data.get("color_preference", "random")
 
         if board_size not in [9, 13, 19]:
             raise HTTPException(status_code=400, detail="Invalid board size")
@@ -64,12 +65,20 @@ async def create_game(request: Request):
         if komi < 0.5 or komi > 50:
             raise HTTPException(status_code=400, detail="Invalid komi value")
 
+        if color_preference not in ["random", "black", "white"]:
+            raise HTTPException(status_code=400, detail="Invalid color preference")
+
         # Assign or reuse player_id
         player_id = incoming_player_id or str(uuid.uuid4())[:8]
 
         # Create a new game with time control
         game_id = str(uuid.uuid4())[:8]
         game = GameState(board_size, time_control=time_control, komi=komi, rule_set=rule_set)
+
+        # Set internal fields for game
+        game.set_created_by(player_id)
+        game.set_color_preference(color_preference)
+        game.set_colors_randomized(color_preference == "random")
 
         # Store game in Redis
         redis_client.setex(f"game:{game_id}", 120, json.dumps(game.to_dict()))
@@ -116,11 +125,18 @@ async def join_game(game_id: str, request: Request):
                 raise HTTPException(status_code=400, detail="Game is full")
 
             # Generate a unique player ID
-            player_id = str(uuid.uuid4())[:8]
+            player_id = incoming_player_id or str(uuid.uuid4())[:8]
             if len(game.players) == 0:
-                # First player, randomly assign color
-                player_color = random.choice([Stone.BLACK, Stone.WHITE])
-                game.players[player_id] = player_color.value
+                if game.color_preference == "random":
+                    # First player, randomly assign color
+                    player_color = random.choice([Stone.BLACK, Stone.WHITE])
+                    game.players[player_id] = player_color.value
+                else:
+                    preferredColorValue = Stone.BLACK.value if game.color_preference == "black" else Stone.WHITE.value
+                    if player_id == game.created_by:
+                        game.players[player_id] = preferredColorValue
+                    else:
+                        game.players[player_id] = Stone.WHITE.value if preferredColorValue == Stone.BLACK.value else Stone.BLACK.value
             else:
                 # Second player gets the remaining color
                 existing_color = list(game.players.values())[0]
