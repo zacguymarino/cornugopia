@@ -59,15 +59,24 @@ export function isCaptured(index, color, board, boardSize) {
     return !hasLiberties(group, board, boardSize);
 }
 
-export function replayMovesUpTo(moves, index, boardSize) {
+export function replayMovesUpTo(moves, index, boardSize, initialHandicaps = []) {
     const board = Array(boardSize * boardSize).fill(Stone.EMPTY);
     let currentTurn = Stone.BLACK;
     let capturedBlack = 0;
     let capturedWhite = 0;
 
+    // First place handicap stones
+    for (const idx of initialHandicaps) {
+        console.log("Placing handicap stone at index:", idx);
+        board[idx] = Stone.BLACK;
+    }
+
+    if (initialHandicaps.length > 0) {
+        currentTurn = Stone.WHITE;
+    }
+
     for (let i = 0; i < index; i++) {
-        const move = moves[i];
-        const { index: moveIndex, color } = move;
+        const { index: moveIndex, color } = moves[i];
 
         if (moveIndex === -2) continue; // resignation
         if (moveIndex === -1) {

@@ -27,6 +27,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
             this.playerId = localStorage.getItem("zg_player_id");
 
+            this.doubleClickEnabled = false;
+            this.pendingMoveIndex = null;
+
             //Game review stuff
             this.reviewIndex = null;
             this.originalGameState = null;
@@ -236,7 +239,22 @@ document.addEventListener("DOMContentLoaded", function () {
                 return;
             }
         
-            this.sendMove(index);
+            if (this.doubleClickEnabled) {
+                if (this.pendingMoveIndex === index) {
+                    // Second click on same spot: send move
+                    this.sendMove(index);
+                    this.pendingMoveIndex = null;
+                } else {
+                    // First click: preview move
+                    this.pendingMoveIndex = index;
+                    this.redrawStones();
+                    const pos = this.getBoardCoords(index);
+                    this.drawStone(pos.x, pos.y, this.playerColor === 1 ? "black" : "white", 0.5);
+                }
+            } else {
+                // Standard single-click send
+                this.sendMove(index);
+            }
         }
 
         drawDeadOverlays() {
@@ -382,7 +400,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     this.reviewIndex--;
                 }
 
-                const result = replayMovesUpTo(this.originalGameState.moves, this.reviewIndex, this.size);
+                const result = replayMovesUpTo(this.originalGameState.moves, this.reviewIndex, this.size, this.originalGameState.handicap_placements || []);
                 this.board = result.board;
                 this.capturedBlack = result.capturedBlack;
                 this.capturedWhite = result.capturedWhite;
@@ -409,7 +427,7 @@ document.addEventListener("DOMContentLoaded", function () {
         
                 // If this is the final move again, re-show agreed dead
                 if (this.reviewIndex === max) {
-                    const result = replayMovesUpTo(moves, this.reviewIndex, this.size);
+                    const result = replayMovesUpTo(moves, this.reviewIndex, this.size, this.originalGameState.handicap_placements || []);
                     this.board = result.board;
                     this.capturedBlack = result.capturedBlack;
                     this.capturedWhite = result.capturedWhite;
@@ -436,7 +454,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         this.drawX(boardPos.x, boardPos.y, "black", 0.5);
                     }
                 } else {
-                    const result = replayMovesUpTo(this.originalGameState.moves, this.reviewIndex, this.size);
+                    const result = replayMovesUpTo(this.originalGameState.moves, this.reviewIndex, this.size, this.originalGameState.handicap_placements || []);
                     this.board = result.board;
                     this.capturedBlack = result.capturedBlack;
                     this.capturedWhite = result.capturedWhite;
@@ -809,6 +827,11 @@ document.addEventListener("DOMContentLoaded", function () {
               }));
               input.value = "";
             }
+        });
+
+        document.getElementById("doubleClickToggle").addEventListener("change", (e) => {
+            goBoard.doubleClickEnabled = e.target.checked;
+            goBoard.pendingMoveIndex = null;
         });
     }
 
