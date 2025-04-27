@@ -11,34 +11,51 @@ function generateSGF(gameState) {
         return `${sgfChar(x)}${sgfChar(y)}`;
     };
 
-    let sgf = `(;GM[1]FF[4]SZ[${size}]KM[${komi}]`;
+    const props = [
+        "GM[1]",      // Game type: Go
+        "FF[4]",      // SGF file format version 4
+        `SZ[${size}]`,// Board size
+        `KM[${komi}]` // Komi
+    ];
 
+    // Add handicap if needed
+    if (gameState.handicap_placements && gameState.handicap_placements.length > 0) {
+        props.push(`HA[${gameState.handicap_placements.length}]`);
+        const handicapCoords = gameState.handicap_placements.map(idx => `[${getCoords(idx)}]`).join('');
+        props.push(`AB${handicapCoords}`);
+    }
+
+    // Add result if the game is over
     if (gameState.game_over) {
         const reason = gameState.game_over_reason;
         const winner = gameState.winner;
         const winnerColor = gameState.players?.[winner]; // 1 = Black, 2 = White
 
         if (reason === "resign") {
-            sgf += `RE[${winnerColor === 1 ? "B+R" : "W+R"}]`;
+            props.push(`RE[${winnerColor === 1 ? "B+R" : "W+R"}]`);
         } else if (reason === "timeout") {
-            sgf += `RE[${winnerColor === 1 ? "B+T" : "W+T"}]`;
+            props.push(`RE[${winnerColor === 1 ? "B+T" : "W+T"}]`);
         } else if (reason === "double_pass" && gameState.final_score) {
             const [blackScore, whiteScore] = gameState.final_score;
             const margin = Math.abs(blackScore - whiteScore);
             if (margin === 0) {
-                sgf += `RE[0]`; // Tie game, but shouldn't happen
+                props.push(`RE[0]`);
             } else {
                 const leadingColor = blackScore > whiteScore ? "B" : "W";
-                sgf += `RE[${leadingColor}+${margin}]`;
+                props.push(`RE[${leadingColor}+${margin}]`);
             }
         }
     }
 
+    // Start building SGF
+    let sgf = `(;${props.join('')}`;
+
+    // Now the moves
     for (const move of moves) {
         if (move.index === -1) {
             sgf += `;${getColor(move.color)}[]`; // Pass
         } else if (move.index === -2) {
-            continue; // Don't encode resignations as moves
+            continue; // Skip resign moves
         } else {
             sgf += `;${getColor(move.color)}[${getCoords(move.index)}]`;
         }
@@ -47,6 +64,7 @@ function generateSGF(gameState) {
     sgf += ')';
     return sgf;
 }
+
 
 function downloadSGF(gameState) {
     const sgf = generateSGF(gameState);

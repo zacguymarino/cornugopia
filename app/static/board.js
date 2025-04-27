@@ -466,6 +466,20 @@ document.addEventListener("DOMContentLoaded", function () {
 
         /** Update the board state and UI */
         updateBoard(gameState) {
+            // 0. Update player color if necessary
+            if (gameState.players && this.playerId) {
+                const assignedColor = gameState.players[this.playerId];
+                console.log("Assigned color:", assignedColor);
+                console.log("Current player color:", this.playerColor);
+                if (assignedColor && assignedColor !== this.playerColor) {
+                    this.playerColor = assignedColor;
+                    const colorText = document.querySelector("#playerColor span");
+                    if (colorText) {
+                        colorText.textContent = this.playerColor === 1 ? "Black" : "White";
+                    }
+                }
+            }
+
             // 1. Update the board
             this.board = gameState.board_state.map(value => {
                 if (value === 1) return Stone.BLACK;

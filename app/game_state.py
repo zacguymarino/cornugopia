@@ -38,6 +38,10 @@ class GameState:
         self.created_by = None
         self.color_preference = "random"
         self.colors_randomized = False
+        self.allow_handicaps = False
+        self.handicap_stones = None
+        self.handicap_placements = []
+        self.estimated_ranks = {}
 
     def set_colors_randomized(self, randomized: bool):
         self.colors_randomized = bool(randomized)
@@ -48,6 +52,9 @@ class GameState:
     def set_color_preference(self, preference: str):
         if preference in ["black", "white", "random"]:
             self.color_preference = preference
+
+    def set_allow_handicaps(self, allow: bool):
+        self.allow_handicaps = allow
 
     def mark_group_as_dead(self, index: int):
         color = self.board_state[index]
@@ -266,25 +273,6 @@ class GameState:
 
         return final_black_score, final_white_score
 
-
-    # def score_game(self) -> tuple:
-    #     black_territory = 0
-    #     white_territory = 0
-    #     visited = set()
-
-    #     for i in range(self.board_size * self.board_size):
-    #         if self.board_state[i] == Stone.EMPTY.value and i not in visited:
-    #             owner, size = self.count_territory(i, visited)
-    #             if owner == Stone.BLACK:
-    #                 black_territory += size
-    #             elif owner == Stone.WHITE:
-    #                 white_territory += size
-
-
-    #     final_black_score = black_territory + self.captured_white
-    #     final_white_score = white_territory + self.captured_black + self.komi
-    #     return final_black_score, final_white_score
-
     def count_territory(self, start: int, visited: set, excluded: set) -> tuple:
         stack = [start]
         region = set()
@@ -351,7 +339,13 @@ class GameState:
             "excluded_points": self.excluded_points,
             "rule_set": self.rule_set,
             "komi": self.komi,
-            "colors_randomized": self.colors_randomized
+            "colors_randomized": self.colors_randomized,
+            "color_preference": self.color_preference,
+            "created_by": self.created_by,
+            "allow_handicaps": self.allow_handicaps,
+            "handicap_stones": self.handicap_stones,
+            "handicap_placements": self.handicap_placements,
+            "estimated_ranks": self.estimated_ranks
         }
 
     @staticmethod
@@ -381,4 +375,10 @@ class GameState:
         game.excluded_points = data.get("excluded_points", [])
         game.rule_set = data.get("rule_set", "japanese")
         game.komi = data.get("komi", 6.5)
+        game.color_preference = data.get("color_preference", "random")
+        game.created_by = data.get("created_by", None)
+        game.allow_handicaps = data.get("allow_handicaps", False)
+        game.handicap_stones = data.get("handicap_stones", None)
+        game.handicap_placements = data.get("handicap_placements", [])
+        game.estimated_ranks = data.get("estimated_ranks", {})
         return game

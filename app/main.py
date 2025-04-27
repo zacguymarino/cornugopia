@@ -11,6 +11,7 @@ import uuid
 import redis
 import json
 from game_state import GameState, Stone
+from game_helper import rank_to_number, place_handicap_stones
 from timers import record_disconnect_time, clear_disconnect_time, clear_all_disconnects, start_timer_for_game
 from better_profanity import profanity
 
@@ -54,6 +55,7 @@ async def create_game(request: Request):
         komi = float(data.get("komi", 6.5))
         rule_set = data.get("rule_set", "japanese")
         color_preference = data.get("color_preference", "random")
+        allow_handicaps = data.get("allow_handicaps", False)
 
         if board_size not in [9, 13, 19]:
             raise HTTPException(status_code=400, detail="Invalid board size")
@@ -82,6 +84,7 @@ async def create_game(request: Request):
         game.set_created_by(player_id)
         game.set_color_preference(color_preference)
         game.set_colors_randomized(color_preference == "random")
+        game.set_allow_handicaps(allow_handicaps)
 
         # Store game in Redis
         redis_client.setex(f"game:{game_id}", 120, json.dumps(game.to_dict()))
@@ -107,6 +110,7 @@ async def join_game(game_id: str, request: Request):
             # Request data
             data = await request.json()
             incoming_player_id = data.get("player_id")
+            estimated_rank = data.get("estimated_rank", None)
 
             # Watch the key for changes (optimistic locking)
             pipe.watch(f"game:{game_id}")
@@ -127,8 +131,14 @@ async def join_game(game_id: str, request: Request):
             if len(game.players) >= 2:
                 raise HTTPException(status_code=400, detail="Game is full")
 
+            allow_handicaps = getattr(game, "allow_handicaps", False)
+
             # Generate a unique player ID
             player_id = incoming_player_id or str(uuid.uuid4())[:8]
+
+            if allow_handicaps and not estimated_rank:
+                raise HTTPException(status_code=400, detail="Estimated rank is required for handicap games")
+
             if len(game.players) == 0:
                 if game.color_preference == "random":
                     # First player, randomly assign color
@@ -141,10 +151,45 @@ async def join_game(game_id: str, request: Request):
                     else:
                         game.players[player_id] = Stone.WHITE.value if preferredColorValue == Stone.BLACK.value else Stone.BLACK.value
             else:
-                # Second player gets the remaining color
-                existing_color = list(game.players.values())[0]
+                existing_player_id = list(game.players.keys())[0]
+                existing_color = game.players[existing_player_id]
                 player_color = Stone.BLACK if existing_color == Stone.WHITE.value else Stone.WHITE
                 game.players[player_id] = player_color.value
+
+            if allow_handicaps:
+                if not hasattr(game, "estimated_ranks") or game.estimated_ranks is None:
+                    game.estimated_ranks = {}
+
+                game.estimated_ranks[player_id] = estimated_rank
+
+                # If two players joined and both ranks known, finalize handicap stones
+                if len(game.players) == 2 and len(game.estimated_ranks) == 2:
+                    print("Both players have joined and ranks are known. Calculating handicap...")
+                    player_ids = list(game.players.keys())
+                    rank1 = rank_to_number(game.estimated_ranks[player_ids[0]])
+                    rank2 = rank_to_number(game.estimated_ranks[player_ids[1]])
+
+                    print(f"Player 1 rank: {rank1}, Player 2 rank: {rank2}")
+
+                    if rank1 is None or rank2 is None:
+                        raise HTTPException(status_code=400, detail="Invalid rank provided")
+
+                    rank_diff = abs(rank1 - rank2)
+                    game.handicap_stones = min(rank_diff, 9)
+
+                    # Assign Black to the weaker player
+                    if rank1 > rank2:
+                        print("Player 1 is stronger, assigning White")
+                        game.players[player_ids[0]] = Stone.WHITE.value
+                        game.players[player_ids[1]] = Stone.BLACK.value
+                    else:
+                        print("Player 2 is stronger, assigning White")
+                        game.players[player_ids[0]] = Stone.BLACK.value
+                        game.players[player_ids[1]] = Stone.WHITE.value
+
+                    # Add handicap stones
+                    place_handicap_stones(game)
+
 
             # If both players joined and time control is enabled, initialize time_left
             if game.time_control != "none" and len(game.players) == 2:
@@ -161,6 +206,15 @@ async def join_game(game_id: str, request: Request):
             pipe.multi()
             pipe.set(f"game:{game_id}", json.dumps(game.to_dict()))
             pipe.execute()  # Executes transaction
+
+            if len(game.players) == 2:
+                redis_client.publish(
+                    f"game_updates:{game_id}",
+                    json.dumps({
+                        "type": "game_state",
+                        "payload": game.to_dict()
+                    })
+                )
 
             return {"message": "Joined successfully", "player_id": player_id}
 
