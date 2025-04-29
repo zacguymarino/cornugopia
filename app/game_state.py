@@ -30,6 +30,10 @@ class GameState:
         self.finalized_players = []
         self.time_control = time_control
         self.time_left = {}
+        self.periods_left = {}
+        self.byo_yomi_periods = 0
+        self.byo_yomi_time = 0
+        self.byo_yomi_time_left = {}
         self.komi = komi
         self.moves = []
         self.agreed_dead = []
@@ -334,6 +338,10 @@ class GameState:
             "finalized_players": self.finalized_players,
             "time_control": self.time_control,
             "time_left": self.time_left,
+            "periods_left": self.periods_left,
+            "byo_yomi_periods": self.byo_yomi_periods,
+            "byo_yomi_time": self.byo_yomi_time,
+            "byo_yomi_time_left": self.byo_yomi_time_left,
             "moves": self.moves,
             "agreed_dead": self.agreed_dead,
             "excluded_points": self.excluded_points,
@@ -370,6 +378,10 @@ class GameState:
         game.finalized_players = data.get("finalized_players", [])
         game.time_control = data.get("time_control", "none")
         game.time_left = data.get("time_left", {})
+        game.periods_left = data.get("periods_left", {})
+        game.byo_yomi_periods = data.get("byo_yomi_periods", 0)
+        game.byo_yomi_time = data.get("byo_yomi_time", 0)
+        game.byo_yomi_time_left = data.get("byo_yomi_time_left", {})
         game.moves = data.get("moves", [])
         game.agreed_dead = data.get("agreed_dead", [])
         game.excluded_points = data.get("excluded_points", [])

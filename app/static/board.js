@@ -695,6 +695,12 @@ document.addEventListener("DOMContentLoaded", function () {
             
                 const blackTime = gameState.time_left[blackId];
                 const whiteTime = gameState.time_left[whiteId];
+
+                const blackPeriods = gameState.periods_left?.[blackId] ?? 0;
+                const whitePeriods = gameState.periods_left?.[whiteId] ?? 0;
+
+                const blackByoYomiTime = gameState.byo_yomi_time_left?.[blackId] ?? 0;
+                const whiteByoYomiTime = gameState.byo_yomi_time_left?.[whiteId] ?? 0;
             
                 const formatTime = (seconds) => {
                     const min = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -702,8 +708,27 @@ document.addEventListener("DOMContentLoaded", function () {
                     return `${min}:${sec}`;
                 };
             
-                if (blackTimer) blackTimer.textContent = blackTime !== undefined ? formatTime(blackTime) : "--:--";
-                if (whiteTimer) whiteTimer.textContent = whiteTime !== undefined ? formatTime(whiteTime) : "--:--";
+                // Black timer display
+                if (blackTimer) {
+                    if (blackTime > 0) {
+                        blackTimer.textContent = formatTime(blackTime);
+                    } else if (blackPeriods > 0) {
+                        blackTimer.textContent = `${formatTime(blackByoYomiTime)} (${blackPeriods})`;
+                    } else {
+                        blackTimer.textContent = "--:--";
+                    }
+                }
+
+                // White timer display
+                if (whiteTimer) {
+                    if (whiteTime > 0) {
+                        whiteTimer.textContent = formatTime(whiteTime);
+                    } else if (whitePeriods > 0) {
+                        whiteTimer.textContent = `${formatTime(whiteByoYomiTime)} (${whitePeriods})`;
+                    } else {
+                        whiteTimer.textContent = "--:--";
+                    }
+                }
             }
             
         }

@@ -51,6 +51,7 @@ async def track_game(game_id: str, redis_client):
                         "type": "game_state",
                         "payload": game.to_dict()
                     }))
+                    continue
 
             # Time control logic
             if game.time_control != "none" and len(game.players) == 2 and not game.in_scoring_phase:
@@ -68,18 +69,47 @@ async def track_game(game_id: str, redis_client):
                             default_time = 300  # Fallback to 5 minutes
                         game.time_left[current_player] = default_time
 
-                    # Tick down 1 second per loop
-                    game.time_left[current_player] = max(0, game.time_left[current_player] - 1)
+                    # Initialize byo-yomi periods if missing
+                    if current_player not in game.periods_left and game.byo_yomi_periods > 0:
+                        game.periods_left[current_player] = game.byo_yomi_periods
 
-                    if game.time_left[current_player] <= 0:
-                        print(f"Player {current_player} ran out of time in game {game_id}")
-                        game.end_game(reason="timeout", resigned_player=current_player)
+                    if current_player not in game.byo_yomi_time_left and game.byo_yomi_periods > 0:
+                        game.byo_yomi_time_left[current_player] = game.byo_yomi_time
 
-                        redis_client.set(f"game:{game_id}", json.dumps(game.to_dict()))
-                        redis_client.publish(f"game_updates:{game_id}", json.dumps({
-                            "type": "game_state",
-                            "payload": game.to_dict()
-                        }))
+                    # Ticking logic
+                    if game.time_left[current_player] > 0:
+                        # Main time phase
+                        game.time_left[current_player] = max(0, game.time_left[current_player] - 1)
+
+                        # Check if just hit 0 and no byo-yomi exists
+                        if game.time_left[current_player] == 0 and game.byo_yomi_periods == 0:
+                            print(f"Player {current_player} ran out of main time (no byo-yomi) in game {game_id}")
+                            game.end_game(reason="timeout", resigned_player=current_player)
+                            redis_client.set(f"game:{game_id}", json.dumps(game.to_dict()))
+                            redis_client.publish(f"game_updates:{game_id}", json.dumps({
+                                "type": "game_state",
+                                "payload": game.to_dict()
+                            }))
+                            continue
+                    else:
+                        # Byo-yomi phase
+                        if game.byo_yomi_periods > 0:
+                            game.byo_yomi_time_left[current_player] -= 1
+
+                            if game.byo_yomi_time_left[current_player] <= 0:
+                                game.periods_left[current_player] -= 1
+
+                                if game.periods_left[current_player] <= 0:
+                                    print(f"Player {current_player} ran out of byo-yomi in game {game_id}")
+                                    game.end_game(reason="timeout", resigned_player=current_player)
+                                    redis_client.set(f"game:{game_id}", json.dumps(game.to_dict()))
+                                    redis_client.publish(f"game_updates:{game_id}", json.dumps({
+                                        "type": "game_state",
+                                        "payload": game.to_dict()
+                                    }))
+                                    continue
+                                else:
+                                    game.byo_yomi_time_left[current_player] = game.byo_yomi_time
 
                 # Save updated time if game is still active
                 redis_client.set(f"game:{game_id}", json.dumps(game.to_dict()))

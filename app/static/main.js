@@ -9,6 +9,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const allowHandicapsCheckbox = document.getElementById("allowHandicaps");
 
+    const byoYomiPeriodsSelect = document.getElementById("byoYomiPeriods");
+    const byoYomiTimeInput = document.getElementById("byoYomiTime");
+
     /** Handle creating a new game */
     createGameBtn.addEventListener("click", async function () {
         const selectedSize = boardSizeSelect.value;
@@ -17,6 +20,8 @@ document.addEventListener("DOMContentLoaded", function () {
         const komiValue = parseFloat(document.getElementById("komiInput").value);
         const ruleSet = document.getElementById("ruleSet").value;
         const colorPreference = document.getElementById("colorPreference").value;
+        const byoYomiPeriods = parseInt(byoYomiPeriodsSelect.value);
+        const byoYomiTime = parseInt(byoYomiTimeInput.value) || 0;
 
         try {
             const response = await fetch("/create_game", {
@@ -30,6 +35,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     rule_set: ruleSet,
                     color_preference: colorPreference,
                     allow_handicaps: allowHandicapsCheckbox.checked,
+                    byo_yomi_periods: byoYomiPeriods,
+                    byo_yomi_time: byoYomiTime
                 })
             });
 
@@ -138,6 +145,14 @@ document.addEventListener("DOMContentLoaded", function () {
           komiInput.value = 6.5;
         } else if (selectedRule === "chinese") {
           komiInput.value = 7.5;
+        }
+    });
+
+    byoYomiPeriodsSelect.addEventListener("change", () => {
+        if (parseInt(byoYomiPeriodsSelect.value) > 0) {
+            byoYomiTimeInput.disabled = false;
+        } else {
+            byoYomiTimeInput.disabled = true;
         }
     });
 });

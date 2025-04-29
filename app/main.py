@@ -56,6 +56,8 @@ async def create_game(request: Request):
         rule_set = data.get("rule_set", "japanese")
         color_preference = data.get("color_preference", "random")
         allow_handicaps = data.get("allow_handicaps", False)
+        byo_yomi_periods = int(data.get("byo_yomi_periods", 0))
+        byo_yomi_time = int(data.get("byo_yomi_time", 0))
 
         if board_size not in [9, 13, 19]:
             raise HTTPException(status_code=400, detail="Invalid board size")
@@ -73,6 +75,12 @@ async def create_game(request: Request):
         if color_preference not in ["random", "black", "white"]:
             raise HTTPException(status_code=400, detail="Invalid color preference")
 
+        if byo_yomi_periods not in [0, 1, 2, 3, 4, 5]:
+            raise HTTPException(status_code=400, detail="Invalid byo-yomi periods")
+
+        if byo_yomi_time < 0 or byo_yomi_time > 60 or byo_yomi_time % 5 != 0:
+            raise HTTPException(status_code=400, detail="Invalid byo-yomi time")
+
         # Assign or reuse player_id
         player_id = incoming_player_id or str(uuid.uuid4())[:8]
 
@@ -85,6 +93,8 @@ async def create_game(request: Request):
         game.set_color_preference(color_preference)
         game.set_colors_randomized(color_preference == "random")
         game.set_allow_handicaps(allow_handicaps)
+        game.byo_yomi_periods = byo_yomi_periods
+        game.byo_yomi_time = byo_yomi_time
 
         # Store game in Redis
         redis_client.setex(f"game:{game_id}", 120, json.dumps(game.to_dict()))
@@ -263,6 +273,9 @@ async def make_move(game_id: str, request: Request):
                 "color": player_color.value,
                 "timestamp": time.time()
             })
+            #Reset byo-yomi if needed
+            if game.byo_yomi_periods > 0:
+                game.byo_yomi_time_left[player_id] = game.byo_yomi_time
         else:
             raise HTTPException(status_code=400, detail="Invalid move")
 
