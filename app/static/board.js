@@ -124,7 +124,6 @@ document.addEventListener("DOMContentLoaded", function () {
             this.canvas.width = size;
             this.canvas.height = size;
             this.cellSize = size / (this.size + 1);
-            this.drawBoard();
             this.redrawStones();
         }
         
@@ -383,6 +382,11 @@ document.addEventListener("DOMContentLoaded", function () {
                         this.drawStone(x + 1, y + 1, this.board[index] === Stone.BLACK ? "black" : "white");
                     }
                 }
+            }
+            if (this.pendingMoveIndex !== null) {
+                const color = this.playerColor === 1 ? "black" : "white";
+                const pos = this.getBoardCoords(this.pendingMoveIndex);
+                this.drawStone(pos.x, pos.y, color, 0.5);  // Half-opacity
             }
         }
 
