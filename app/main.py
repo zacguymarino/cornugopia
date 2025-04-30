@@ -12,7 +12,7 @@ import redis
 import json
 from game_state import GameState, Stone
 from game_helper import rank_to_number, place_handicap_stones
-from timers import record_disconnect_time, clear_disconnect_time, clear_all_disconnects, start_timer_for_game
+from timers import record_disconnect_time, clear_disconnect_time, clear_all_disconnects, start_timer_for_game, start_join_timeout_for_game, join_timeout_tasks
 from better_profanity import profanity
 
 app = FastAPI()
@@ -97,7 +97,9 @@ async def create_game(request: Request):
         game.byo_yomi_time = byo_yomi_time
 
         # Store game in Redis
-        redis_client.setex(f"game:{game_id}", 120, json.dumps(game.to_dict()))
+        redis_client.set(f"game:{game_id}", json.dumps(game.to_dict()))
+        # Start join timer coroutine
+        start_join_timeout_for_game(game_id, redis_client, timeout_seconds=600)
 
         return {
             "game_id": game_id,
@@ -576,5 +578,7 @@ def debug_redis_state():
 
         else:
             redis_snapshot[key] = f"<Unsupported type: {key_type}>"
+
+    redis_snapshot["join_timeout_tasks"] = list(join_timeout_tasks.keys())
 
     return JSONResponse(content=redis_snapshot)
