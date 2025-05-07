@@ -8,6 +8,7 @@ class Stone(Enum):
 
 class GameState:
     def __init__(self, board_size: int, time_control="none", komi=6.5, rule_set="japanese"):
+        self.game_type = "private"
         self.board_size = board_size
         self.players = {}
         self.board_state = [Stone.EMPTY.value] * (board_size * board_size)  # 1D board
@@ -318,6 +319,7 @@ class GameState:
 
     def to_dict(self):
         return {
+            "game_type": self.game_type,
             "board_size": self.board_size,
             "players": self.players,
             "board_state": self.board_state,
@@ -359,6 +361,7 @@ class GameState:
     @staticmethod
     def from_dict(data):
         game = GameState(data["board_size"])
+        game.game_type = data.get("game_type", "private")
         game.players = data["players"]
         game.board_state = data["board_state"]
         game.previous_state = data["previous_state"]

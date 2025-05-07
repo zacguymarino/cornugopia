@@ -5,23 +5,23 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import traceback
 import time
-import random
 import asyncio
 import uuid
 import redis
 import json
 from game_state import GameState, Stone
-from game_helper import rank_to_number, place_handicap_stones
+from game_helper import do_join
 from timers import record_disconnect_time, clear_disconnect_time, clear_all_disconnects, start_timer_for_game, start_join_timeout_for_game, join_timeout_tasks
 from better_profanity import profanity
+from db import async_session
+from models import PublicGame
+from redis_client import redis_client
 
 app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 
 templates = Jinja2Templates(directory="/app/templates")
-
-redis_client = redis.Redis(host="redis", port=6379, decode_responses=True)
 
 profanity.load_censor_words()
 
@@ -58,6 +58,8 @@ async def create_game(request: Request):
         allow_handicaps = data.get("allow_handicaps", False)
         byo_yomi_periods = int(data.get("byo_yomi_periods", 0))
         byo_yomi_time = int(data.get("byo_yomi_time", 0))
+        game_type = data.get("game_type", "private")
+        creator_rank = data.get("creator_rank", None)
 
         if board_size not in [9, 13, 19]:
             raise HTTPException(status_code=400, detail="Invalid board size")
@@ -81,6 +83,9 @@ async def create_game(request: Request):
         if byo_yomi_time < 0 or byo_yomi_time > 60 or byo_yomi_time % 5 != 0:
             raise HTTPException(status_code=400, detail="Invalid byo-yomi time")
 
+        if game_type not in ["private", "public"]:
+            raise HTTPException(status_code=400, detail="Invalid game type")
+
         # Assign or reuse player_id
         player_id = incoming_player_id or str(uuid.uuid4())[:8]
 
@@ -89,6 +94,7 @@ async def create_game(request: Request):
         game = GameState(board_size, time_control=time_control, komi=komi, rule_set=rule_set)
 
         # Set internal fields for game
+        game.game_type = game_type
         game.set_created_by(player_id)
         game.set_color_preference(color_preference)
         game.set_colors_randomized(color_preference == "random")
@@ -100,6 +106,29 @@ async def create_game(request: Request):
         redis_client.set(f"game:{game_id}", json.dumps(game.to_dict()))
         # Start join timer coroutine
         start_join_timeout_for_game(game_id, redis_client, timeout_seconds=600)
+
+
+        if game_type == "public":
+            if allow_handicaps and not creator_rank:
+                raise HTTPException(status_code=400, detail="Estimated rank is required for handicap games")
+
+            do_join(game_id, player_id, creator_rank)
+
+            async with async_session() as session:
+                new_game = PublicGame(
+                    id=game_id,
+                    board_size=board_size,
+                    created_by=player_id,
+                    rule_set=rule_set,
+                    komi=komi,
+                    time_control=time_control,
+                    byo_yomi_periods=byo_yomi_periods,
+                    byo_yomi_time=byo_yomi_time,
+                    color_preference=color_preference,
+                    allow_handicaps=allow_handicaps
+                )
+                session.add(new_game)
+                await session.commit()
 
         return {
             "game_id": game_id,
@@ -117,125 +146,13 @@ async def create_game(request: Request):
 
 @app.post("/game/{game_id}/join")
 async def join_game(game_id: str, request: Request):
-    with redis_client.pipeline() as pipe:  # Start Redis transaction
-        try:
-            # Request data
-            data = await request.json()
-            incoming_player_id = data.get("player_id")
-            estimated_rank = data.get("estimated_rank", None)
-
-            # Watch the key for changes (optimistic locking)
-            pipe.watch(f"game:{game_id}")
-
-            # Fetch game state
-            game_data = redis_client.get(f"game:{game_id}")
-            if not game_data:
-                raise HTTPException(status_code=404, detail="Game not found or expired")
-
-            game = GameState.from_dict(json.loads(game_data))
-
-            if incoming_player_id in game.players:
-                return {
-                    "message": "Reconnected successfully",
-                    "player_id": incoming_player_id
-                }
-
-            if len(game.players) >= 2:
-                raise HTTPException(status_code=400, detail="Game is full")
-
-            allow_handicaps = getattr(game, "allow_handicaps", False)
-
-            # Generate a unique player ID
-            player_id = incoming_player_id or str(uuid.uuid4())[:8]
-
-            if allow_handicaps and not estimated_rank:
-                raise HTTPException(status_code=400, detail="Estimated rank is required for handicap games")
-
-            if len(game.players) == 0:
-                if game.color_preference == "random":
-                    # First player, randomly assign color
-                    player_color = random.choice([Stone.BLACK, Stone.WHITE])
-                    game.players[player_id] = player_color.value
-                else:
-                    preferredColorValue = Stone.BLACK.value if game.color_preference == "black" else Stone.WHITE.value
-                    if player_id == game.created_by:
-                        game.players[player_id] = preferredColorValue
-                    else:
-                        game.players[player_id] = Stone.WHITE.value if preferredColorValue == Stone.BLACK.value else Stone.BLACK.value
-            else:
-                existing_player_id = list(game.players.keys())[0]
-                existing_color = game.players[existing_player_id]
-                player_color = Stone.BLACK if existing_color == Stone.WHITE.value else Stone.WHITE
-                game.players[player_id] = player_color.value
-
-            if allow_handicaps:
-                if not hasattr(game, "estimated_ranks") or game.estimated_ranks is None:
-                    game.estimated_ranks = {}
-
-                game.estimated_ranks[player_id] = estimated_rank
-
-                # If two players joined and both ranks known, finalize handicap stones
-                if len(game.players) == 2 and len(game.estimated_ranks) == 2:
-                    print("Both players have joined and ranks are known. Calculating handicap...")
-                    player_ids = list(game.players.keys())
-                    rank1 = rank_to_number(game.estimated_ranks[player_ids[0]])
-                    rank2 = rank_to_number(game.estimated_ranks[player_ids[1]])
-
-                    print(f"Player 1 rank: {rank1}, Player 2 rank: {rank2}")
-
-                    if rank1 is None or rank2 is None:
-                        raise HTTPException(status_code=400, detail="Invalid rank provided")
-
-                    rank_diff = abs(rank1 - rank2)
-                    game.handicap_stones = min(rank_diff, 9)
-
-                    # Assign Black to the weaker player
-                    if rank1 > rank2:
-                        print("Player 1 is stronger, assigning White")
-                        game.players[player_ids[0]] = Stone.WHITE.value
-                        game.players[player_ids[1]] = Stone.BLACK.value
-                    else:
-                        print("Player 2 is stronger, assigning White")
-                        game.players[player_ids[0]] = Stone.BLACK.value
-                        game.players[player_ids[1]] = Stone.WHITE.value
-
-                    # Add handicap stones
-                    place_handicap_stones(game)
-
-
-            # If both players joined and time control is enabled, initialize time_left
-            if game.time_control != "none" and len(game.players) == 2:
-                try:
-                    default_time = int(game.time_control)
-                except ValueError:
-                    default_time = 300  # Fallback to 5 minutes
-
-                for pid in game.players:
-                    if pid not in game.time_left:
-                        game.time_left[pid] = default_time
-
-            # Start transaction and attempt to store updated data
-            pipe.multi()
-            pipe.set(f"game:{game_id}", json.dumps(game.to_dict()))
-            pipe.execute()  # Executes transaction
-
-            if len(game.players) == 2:
-                redis_client.publish(
-                    f"game_updates:{game_id}",
-                    json.dumps({
-                        "type": "game_state",
-                        "payload": game.to_dict()
-                    })
-                )
-
-            return {"message": "Joined successfully", "player_id": player_id}
-
-        except redis.WatchError:
-            print("Race condition detected! Retrying join request...")
-            raise HTTPException(status_code=409, detail="Conflict: Game state changed. Try again.")
-
-        finally:
-            pipe.reset()  # Always reset the pipeline
+    data = await request.json()
+    player_id = do_join(
+        game_id,
+        incoming_player_id=data.get("player_id"),
+        estimated_rank=data.get("estimated_rank")
+    )
+    return {"message": "Joined successfully", "player_id": player_id}
 
 @app.post("/game/{game_id}/move")
 async def make_move(game_id: str, request: Request):
@@ -387,7 +304,7 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str 
             try:
                 message = json.loads(data)
 
-                # # --- Handle dead stone toggling & seki eyes for japanese scoring ---
+                # Handle dead stone toggling & seki eyes for japanese scoring
                 if message["type"] == "toggle_dead_stone":
                     group = message.get("group", [])
                     pid = message["player_id"]

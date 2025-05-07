@@ -5,3 +5,5 @@ gunicorn
 jinja2
 redis
 better-profanity
+asyncpg
+SQLAlchemy

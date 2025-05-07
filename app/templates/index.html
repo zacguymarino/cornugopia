@@ -14,6 +14,11 @@
 
       <!-- Create Game -->
       <div>
+        <label for="gameType">Game Type:</label>
+        <select id="gameType">
+          <option value="private" selected>Private</option>
+          <option value="public">Public</option>
+        </select>
         <label for="boardSize">Select Board Size:</label>
         <select id="boardSize">
           <option value="19" selected>19x19</option>
@@ -62,6 +67,8 @@
             Allow Handicaps
           </label>
         </div>
+
+        <div id="createRankContainer" style="margin-top:10px;"></div>
         
         <label for="colorPreference" style="margin-left: 10px;">Color Preference:</label>
         <select id="colorPreference">

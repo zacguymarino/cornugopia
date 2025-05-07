@@ -12,6 +12,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const byoYomiPeriodsSelect = document.getElementById("byoYomiPeriods");
     const byoYomiTimeInput = document.getElementById("byoYomiTime");
 
+    const gameTypeSelect = document.getElementById("gameType");
+    const createRankContainer = document.getElementById("createRankContainer");
+
     /** Handle creating a new game */
     createGameBtn.addEventListener("click", async function () {
         const selectedSize = boardSizeSelect.value;
@@ -22,6 +25,8 @@ document.addEventListener("DOMContentLoaded", function () {
         const colorPreference = document.getElementById("colorPreference").value;
         const byoYomiPeriods = parseInt(byoYomiPeriodsSelect.value);
         const byoYomiTime = parseInt(byoYomiTimeInput.value) || 0;
+        const gameType = document.getElementById("gameType").value;
+        const creatorRank = document.getElementById("creatorEstimatedRank") ? document.getElementById("creatorEstimatedRank").value : null;
 
         try {
             const response = await fetch("/create_game", {
@@ -36,7 +41,9 @@ document.addEventListener("DOMContentLoaded", function () {
                     color_preference: colorPreference,
                     allow_handicaps: allowHandicapsCheckbox.checked,
                     byo_yomi_periods: byoYomiPeriods,
-                    byo_yomi_time: byoYomiTime
+                    byo_yomi_time: byoYomiTime,
+                    game_type: gameType,
+                    creator_rank: creatorRank
                 })
             });
 
@@ -45,6 +52,12 @@ document.addEventListener("DOMContentLoaded", function () {
             if (response.ok && data.game_id) {
                 // Save (or preserve) the player_id
                 localStorage.setItem("zg_player_id", data.player_id);
+
+                //Redirect to the game page if public game
+                if (gameType === "public") {
+                    window.location.href = `/game/${data.game_id}`;
+                    return;
+                }
 
                 gameIdDisplay.textContent = `Game ID: ${data.game_id}`;
             } else {
@@ -79,7 +92,7 @@ document.addEventListener("DOMContentLoaded", function () {
             // Step 2: Get player rank if handicaps are allowed
             if (gameData.allow_handicaps) {
                 const container = document.getElementById("rankSelectionContainer");
-                container.innerHTML = rankSelectionInput();
+                container.innerHTML = getRankSelectHTML("estimatedRank") + getConfirmJoinButtonHTML("confirmJoinBtn", "Confirm and Join");
                 document.getElementById("confirmJoinBtn").addEventListener("click", async function () {
                     const confirmButton = document.getElementById("confirmJoinBtn");
                     confirmButton.disabled = true; // Disable immediately
@@ -155,6 +168,22 @@ document.addEventListener("DOMContentLoaded", function () {
             byoYomiTimeInput.disabled = true;
         }
     });
+
+    function updateCreateRankUI() {
+        // show rank only for public + handicaps
+        if (gameTypeSelect.value === "public" && allowHandicapsCheckbox.checked) {
+          createRankContainer.innerHTML = getRankSelectHTML("creatorEstimatedRank");
+        } else {
+          createRankContainer.innerHTML = "";
+        }
+    }
+    
+    // wire it up
+    gameTypeSelect.addEventListener("change", updateCreateRankUI);
+    allowHandicapsCheckbox.addEventListener("change", updateCreateRankUI);
+    
+    // initialize on page load
+    updateCreateRankUI();
 });
 
 function clearRankSelectionUI() {
@@ -162,10 +191,10 @@ function clearRankSelectionUI() {
     if (container) container.innerHTML = "";
 }
 
-function rankSelectionInput() {
+function getRankSelectHTML(selectId = "estimatedRank") {
     return `
-    <label for="estimatedRank">Your Estimated Rank:</label>
-    <select id="estimatedRank">
+    <label for=${selectId}>Your Estimated Rank:</label>
+    <select id=${selectId}>
       <optgroup label="Kyu">
         <option value="30k">30k</option>
         <option value="29k">29k</option>
@@ -221,6 +250,9 @@ function rankSelectionInput() {
         <option value="9p">9p</option>
       </optgroup>
     </select>
-    <button id="confirmJoinBtn">Confirm and Join</button>
     `;
+}
+
+function getConfirmJoinButtonHTML(buttonId = "confirmJoinBtn", text = "Confirm and Join") {
+    return `<button id="${buttonId}">${text}</button>`;
 }
