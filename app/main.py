@@ -10,12 +10,15 @@ import uuid
 import redis
 import json
 from game_state import GameState, Stone
-from game_helper import do_join
+from game_helper import do_join, remove_public_game
 from timers import record_disconnect_time, clear_disconnect_time, clear_all_disconnects, start_timer_for_game, start_join_timeout_for_game, join_timeout_tasks
 from better_profanity import profanity
 from db import async_session
 from models import PublicGame
 from redis_client import redis_client
+from typing import Optional
+from sqlalchemy import func
+from sqlalchemy.future import select
 
 app = FastAPI()
 
@@ -152,7 +155,75 @@ async def join_game(game_id: str, request: Request):
         incoming_player_id=data.get("player_id"),
         estimated_rank=data.get("estimated_rank")
     )
+    raw = redis_client.get(f"game:{game_id}")
+    game = GameState.from_dict(json.loads(raw))
+    if len(game.players) == 2:
+        asyncio.create_task(remove_public_game(game_id))
     return {"message": "Joined successfully", "player_id": player_id}
+
+
+@app.get("/games/public")
+async def list_public_games(
+    board_size: Optional[int]      = Query(None, description="9, 13, or 19"),
+    time_control: Optional[str]    = Query(None, description="seconds or 'none'"),
+    allow_handicaps: Optional[bool]= Query(None),
+    byo_yomi_periods: Optional[int]= Query(None, description="0–5"),
+    byo_yomi_time: Optional[int]   = Query(None, description="seconds per period"),
+    rule_set: Optional[str]        = Query(None, description="'japanese' or 'chinese'"),
+    color_preference: Optional[str]= Query(None, description="'random','black','white'"),
+    komi: Optional[float]          = Query(None),
+    page: int                      = Query(1, ge=1),
+    per_page: int                  = Query(20, ge=1, le=100),
+):
+    async with async_session() as session:
+        q = select(PublicGame)
+
+        # only apply filters that are not None
+        if board_size is not None:
+            q = q.where(PublicGame.board_size == board_size)
+        if time_control is not None:
+            q = q.where(PublicGame.time_control == time_control)
+        if allow_handicaps is not None:
+            q = q.where(PublicGame.allow_handicaps == allow_handicaps)
+        if byo_yomi_periods is not None:
+            q = q.where(PublicGame.byo_yomi_periods == byo_yomi_periods)
+        if byo_yomi_time is not None:
+            q = q.where(PublicGame.byo_yomi_time == byo_yomi_time)
+        if rule_set is not None:
+            q = q.where(PublicGame.rule_set == rule_set)
+        if color_preference is not None:
+            q = q.where(PublicGame.color_preference == color_preference)
+        if komi is not None:
+            q = q.where(PublicGame.komi == komi)
+
+        # get total count for pagination
+        count_q = q.with_only_columns(func.count()).order_by(None)
+        total = (await session.execute(count_q)).scalar_one()
+
+        # apply pagination
+        q = q.offset((page - 1) * per_page).limit(per_page)
+        result = await session.execute(q)
+        games = result.scalars().all()
+
+    return {
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "games": [
+            {
+                "id": g.id,
+                "board_size": g.board_size,
+                "time_control": g.time_control,
+                "allow_handicaps": g.allow_handicaps,
+                "byo_yomi_periods": g.byo_yomi_periods,
+                "byo_yomi_time": g.byo_yomi_time,
+                "rule_set": g.rule_set,
+                "color_preference": g.color_preference,
+                "komi": g.komi,
+            }
+            for g in games
+        ],
+    }
 
 @app.post("/game/{game_id}/move")
 async def make_move(game_id: str, request: Request):

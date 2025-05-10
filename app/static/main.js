@@ -15,7 +15,24 @@ document.addEventListener("DOMContentLoaded", function () {
     const gameTypeSelect = document.getElementById("gameType");
     const createRankContainer = document.getElementById("createRankContainer");
 
-    /** Handle creating a new game */
+    let publicPage = 1;
+    const perPage = 5;
+
+    const publicAllCheckbox      = document.getElementById("publicAll");
+    const filterBoardSizeSelect  = document.getElementById("filterBoardSize");
+    const filterTimeControlSel   = document.getElementById("filterTimeControl");
+    const filterHandicapCheckbox = document.getElementById("filterHandicap");
+    const publicFilterBtn        = document.getElementById("publicFilterBtn");
+    const publicTableBody        = document.querySelector("#publicGamesTable tbody");
+    const publicCardsContainer   = document.getElementById("publicGamesCards");
+    const prevPageBtn            = document.getElementById("prevPageBtn");
+    const nextPageBtn            = document.getElementById("nextPageBtn");
+    const pageInfoSpan           = document.getElementById("pageInfo");
+
+    //////////////////////////////////
+    /// Handle creating a new game ///
+    //////////////////////////////////
+
     createGameBtn.addEventListener("click", async function () {
         const selectedSize = boardSizeSelect.value;
         const selectedTimeControl = document.getElementById("timeControl").value;
@@ -69,8 +86,10 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
+    ///////////////////////////////////////
+    /// Handle joining an existing game ///
+    ///////////////////////////////////////
 
-    /** Handle joining an existing game */
     joinGameBtn.addEventListener("click", async function () {
         const gameId = gameIdInput.value.trim();
         if (!gameId) {
@@ -149,7 +168,118 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-    //Other Event listeners
+    ////////////////////////
+    /// PUBLIC GAME MENU ///
+    ////////////////////////
+
+    async function fetchPublicGames() {
+        const params = new URLSearchParams();
+      
+        // Only apply filters when “All” is unchecked
+        if (!publicAllCheckbox.checked) {
+          const bs = filterBoardSizeSelect.value;
+          if (bs) params.set("board_size", bs);
+      
+          const tc = filterTimeControlSel.value;
+          if (tc) params.set("time_control", tc);
+      
+          if (filterHandicapCheckbox.checked) {
+            params.set("allow_handicaps", "true");
+          }
+      
+          const byp = document.getElementById("filterByoYomiPeriods").value;
+          if (byp) params.set("byo_yomi_periods", byp);
+      
+          const byt = document.getElementById("filterByoYomiTime").value;
+          if (byt) params.set("byo_yomi_time", byt);
+      
+          const rs = document.getElementById("filterRuleSet").value;
+          if (rs) params.set("rule_set", rs);
+      
+          const cp = document.getElementById("filterColorPref").value;
+          if (cp) params.set("color_preference", cp);
+      
+          const km = document.getElementById("filterKomi").value;
+          if (km) params.set("komi", km);
+        }
+      
+        params.set("page", publicPage);
+        params.set("per_page", perPage);
+      
+        const res = await fetch(`/games/public?${params.toString()}`);
+        if (!res.ok) {
+          console.error("Failed to fetch public games", res.statusText);
+          return;
+        }
+        const data = await res.json();
+      
+        // Render rows
+        publicTableBody.innerHTML = "";
+        data.games.forEach(g => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${g.id}</td>
+            <td>${g.board_size}×${g.board_size}</td>
+            <td>${g.time_control}</td>
+            <td>${g.allow_handicaps ? "Yes" : "No"}</td>
+            <td>${g.byo_yomi_periods}</td>
+            <td>${g.byo_yomi_time}</td>
+            <td>${g.rule_set}</td>
+            <td>${g.color_preference}</td>
+            <td>${g.komi}</td>
+            <td><button class="joinPublicBtn" data-id="${g.id}">Join</button></td>
+          `;
+          publicTableBody.appendChild(row);
+        });
+      
+        // Update pagination UI
+        const totalPages = Math.ceil(data.total / data.per_page);
+        pageInfoSpan.textContent = `Page ${data.page} of ${totalPages}`;
+        prevPageBtn.disabled = data.page <= 1;
+        nextPageBtn.disabled = data.page >= totalPages;
+
+        //Cards
+        const cardsContainer = document.getElementById("publicGamesCards");
+        cardsContainer.innerHTML = data.games.map(g => `
+        <details class="public-card">
+            <summary>
+            <strong>ID: </strong>${g.id} &nbsp;&bull;&nbsp; <strong>Size</strong>: ${g.board_size} &nbsp;&bull;&nbsp; <strong>Time:</strong> ${g.time_control} &nbsp;&bull;&nbsp; <strong>HC:</strong> ${g.allow_handicaps ? "Yes" : "No"}
+            </summary>
+            <div class="card-details">
+            <p>Byo-yomi: ${g.byo_yomi_periods} × ${g.byo_yomi_time}s</p>
+            <p>Ruleset: ${g.rule_set}</p>
+            <p>Color: ${g.color_preference}</p>
+            <p>Komi: ${g.komi}</p>
+            <button class="joinPublicBtn" data-id="${g.id}">Join</button>
+            </div>
+        </details>
+        `).join("");
+    }
+      
+    
+    // handle filter & pagination clicks
+    publicFilterBtn.addEventListener("click", () => { publicPage = 1; fetchPublicGames(); });
+    prevPageBtn.addEventListener("click", () => { publicPage--; fetchPublicGames(); });
+    nextPageBtn.addEventListener("click", () => { publicPage++; fetchPublicGames(); });
+    
+    // delegate “Join” clicks in table and cards
+    function delegateJoinClick(e) {
+        if (!e.target.classList.contains("joinPublicBtn")) return;
+        const gameId = e.target.dataset.id;
+        // reuse join flow
+        gameIdInput.value = gameId;
+        joinGameBtn.click();
+        }
+        publicTableBody.addEventListener("click", delegateJoinClick);
+        publicCardsContainer.addEventListener("click", delegateJoinClick);
+    
+    // initial load
+    fetchPublicGames();
+
+    ///////////////////////////////////////
+    /// Other Event listeners and setup ///
+    ///////////////////////////////////////
+
     document.getElementById("ruleSet").addEventListener("change", function () {
         const komiInput = document.getElementById("komiInput");
         const selectedRule = this.value;
@@ -169,20 +299,16 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
+    // Handle rank selection UI for creator //
     function updateCreateRankUI() {
-        // show rank only for public + handicaps
         if (gameTypeSelect.value === "public" && allowHandicapsCheckbox.checked) {
           createRankContainer.innerHTML = getRankSelectHTML("creatorEstimatedRank");
         } else {
           createRankContainer.innerHTML = "";
         }
     }
-    
-    // wire it up
     gameTypeSelect.addEventListener("change", updateCreateRankUI);
     allowHandicapsCheckbox.addEventListener("change", updateCreateRankUI);
-    
-    // initialize on page load
     updateCreateRankUI();
 });
 

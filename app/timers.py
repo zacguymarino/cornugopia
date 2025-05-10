@@ -4,6 +4,7 @@ import json
 
 from typing import Dict
 from game_state import GameState
+from game_helper import remove_public_game
 
 # Track running timers
 timer_tasks: Dict[str, asyncio.Task] = {}
@@ -89,6 +90,7 @@ async def join_timeout_check(game_id: str, redis_client, timeout_seconds: int):
         if len(game.players) == 0:
             print(f"Game {game_id} was never joined. Cleaning up after timeout.")
             redis_client.delete(f"game:{game_id}")
+            asyncio.create_task(remove_public_game(game_id))
 
     except asyncio.CancelledError:
         # Join timeout was cancelled because someone joined
@@ -102,6 +104,7 @@ async def handle_post_game_disconnect_cleanup(game_id, redis_client, game):
         print(f"All players disconnected from finished game {game_id}. Cleaning up...")
         redis_client.delete(f"game:{game_id}")
         redis_client.delete(f"disconnect:{game_id}")
+        asyncio.create_task(remove_public_game(game_id))
         raise asyncio.CancelledError
 
 

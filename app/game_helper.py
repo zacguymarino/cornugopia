@@ -4,8 +4,10 @@ import random
 import uuid
 import redis
 from fastapi import HTTPException
-from timers import start_timer_for_game
 from redis_client import redis_client
+from sqlalchemy import delete
+from db import async_session
+from models import PublicGame
 
 #########################
 ### JOIN GAME UTILITY ###
@@ -113,11 +115,19 @@ def do_join(game_id: str, incoming_player_id: str | None = None, estimated_rank:
     finally:
         pipe.reset()
 
+###########################
+### Remove Game From DB ###
+###########################
+async def remove_public_game(game_id: str):
+    async with async_session() as session:
+        await session.execute(
+            delete(PublicGame).where(PublicGame.id == game_id)
+        )
+        await session.commit()
 
 ########################
 ### Handicap Utility ###
 ########################
-
 def place_handicap_stones(game):
 
     star_points_by_size = {
