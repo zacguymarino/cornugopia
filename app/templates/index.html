@@ -14,6 +14,7 @@
 
       <!-- Create Game -->
       <div>
+        <h3>Create Game</h3>
         <label for="gameType">Game Type:</label>
         <select id="gameType">
           <option value="private" selected>Private</option>
@@ -26,7 +27,7 @@
           <option value="9">9x9</option>
         </select>
       
-        <label for="timeControl" style="margin-left: 10px;">Time:</label>
+        <label for="timeControl">Time:</label>
         <select id="timeControl">
           <option value="none">None</option>
           <option value="15">15 seconds</option>
@@ -68,7 +69,7 @@
           </div>
         </div>
       
-        <label for="ruleSet" style="margin-left: 10px;">Scoring Rules:</label>
+        <label for="ruleSet">Scoring Rules:</label>
         <select id="ruleSet">
           <option value="japanese" selected>Japanese</option>
           <option value="chinese">Chinese</option>
@@ -83,7 +84,7 @@
 
         <div id="createRankContainer" style="margin-top:10px;"></div>
         
-        <label for="colorPreference" style="margin-left: 10px;">Color Preference:</label>
+        <label for="colorPreference">Color Preference:</label>
         <select id="colorPreference">
           <option value="random" selected>Random</option>
           <option value="black">Black</option>
@@ -105,8 +106,23 @@
         <p id="gameIdDisplay"></p> <!-- Will display the created game ID -->
       </div>
 
+      <!-- Spectate Game -->
+      <div id="spectateSection" style="margin-top: 1.5em;">
+        <h3>Spectate Game</h3>
+        <input
+          type="text"
+          id="spectateGameId"
+          placeholder="Enter Game ID to Spectate"
+          style="width: 200px; padding: 4px;"
+        />
+        <button id="spectateBtn" style="padding: 6px 12px; margin-left:4px;">
+          Spectate
+        </button>
+      </div>
+
       <!-- Join Game -->
       <div>
+        <h3>Join Game</h3>
         <input type="text" id="gameIdInput" placeholder="Enter Game ID">
         <button id="joinGameBtn">Join Game</button>
         <div id="rankSelectionContainer"></div>
@@ -114,7 +130,7 @@
 
       <!-- Public Games Browser -->
       <section id="publicGamesSection" style="margin-top: 2em;">
-        <h2>Browse Public Games</h2>
+        <h3>Browse Public Games</h3>
       
         <label><input type="checkbox" id="publicAll" /> All</label>
       

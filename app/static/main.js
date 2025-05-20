@@ -15,6 +15,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const gameTypeSelect = document.getElementById("gameType");
     const createRankContainer = document.getElementById("createRankContainer");
 
+    const spectateGameInput = document.getElementById("spectateGameId");
+    const spectateBtn = document.getElementById("spectateBtn");
+
     let publicPage = 1;
     const perPage = 5;
 
@@ -298,6 +301,23 @@ document.addEventListener("DOMContentLoaded", function () {
             byoYomiTimeInput.disabled = true;
         }
     });
+
+    // Handle spectate button click //
+    spectateBtn.addEventListener("click", async () => {
+        const id = spectateGameInput.value.trim();
+        if (!id) {
+          alert("Please enter a valid Game ID to spectate.");
+          return;
+        }
+      
+        const resp = await fetch(`/game/${id}/state`);
+        if (!resp.ok) {
+          alert("Game not found or has ended.");
+          return;
+        }
+      
+        window.location.href = `/spectate/${id}`;
+      });
 
     // Handle rank selection UI for creator //
     function updateCreateRankUI() {

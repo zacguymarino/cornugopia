@@ -45,6 +45,19 @@ def get_game(request: Request, game_id: str):
 
     return templates.TemplateResponse("game.html", {"request": request, "game_id": game_id})
 
+@app.get("/spectate/{game_id}")
+async def spectate_page(request: Request, game_id: str):
+    # verify the game still exists in Redis
+    game_data = redis_client.get(f"game:{game_id}")
+    if not game_data:
+        raise HTTPException(status_code=404, detail="Game not found or has ended")
+    
+    # render the spectate template, passing just the game_id
+    return templates.TemplateResponse(
+        "spectate.html",
+        { "request": request, "game_id": game_id }
+    )
+
 
 ### ENDPOINTS ###
 
@@ -317,29 +330,47 @@ def get_active_connections(game_id: str) -> set:
 local_sockets = {}  # Key: (game_id, player_id), Value: websocket instance
 
 @app.websocket("/ws/{game_id}")
-async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str = Query(None)):
+async def websocket_endpoint(
+    websocket: WebSocket,
+    game_id: str,
+    player_id: str = Query(None),
+    role: str      = Query("player")
+):
+    is_spectator = (role == "spectator")
     connection_id = str(uuid.uuid4())
+
+    #Make sure the game exists in redis
+    if not redis_client.exists(f"game:{game_id}"):
+        await websocket.close(code=1008, reason="Game not found")
+        return
+
     await websocket.accept()
-    print(f"WebSocket connected for game {game_id} by player {player_id}")
+    print(f"WebSocket connected for game {game_id} by player {player_id} role={role}")
 
-    # Start timer coroutine
-    start_timer_for_game(game_id, redis_client)
+    # Only real players start timers, clear disconnects, publish reconnect notices, and join active set
+    if not is_spectator:
+        start_timer_for_game(game_id, redis_client)
+        clear_disconnect_time(game_id, player_id, redis_client)
+        redis_client.publish(
+            f"game_updates:{game_id}",
+            json.dumps({"type": "reconnect_notice", "player_id": player_id})
+        )
+        # Send current game state to the reconnecting player
+        raw = redis_client.get(f"game:{game_id}")
+        if raw:
+            await websocket.send_text(
+                json.dumps({
+                    "type":    "game_state",
+                    "payload": json.loads(raw)
+                })
+            )
 
-    #Handle disconnect tracking on websocket connection
-    clear_disconnect_time(game_id, player_id, redis_client)
+        add_active_connection(game_id, player_id)
 
-    # Notify others that this player reconnected
-    reconnect_notice = {
-        "type": "reconnect_notice",
-        "player_id": player_id
-    }
-    redis_client.publish(f"game_updates:{game_id}", json.dumps(reconnect_notice))
-
-    # Store local WebSocket connection
+    # Register connection for broadcast (players & spectators)
     local_sockets[(game_id, player_id)] = websocket
-    add_active_connection(game_id, player_id)
 
-    # Subscribe to Redis Pub/Sub for game updates
+    # Subscribe to Redis pub/sub channel
     pubsub = redis_client.pubsub()
     pubsub.subscribe(f"game_updates:{game_id}")
     print(f"Listening for Redis updates for game {game_id}")
@@ -347,69 +378,45 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str 
     async def redis_listener():
         try:
             while True:
-                message = pubsub.get_message(ignore_subscribe_messages=True)
-                if message:
-                    raw = message["data"]
-                    parsed = json.loads(raw)
-
-                    # Skip echo of this client's own message
-                    if parsed.get("type") == "chat" and parsed.get("source") == connection_id:
-                        continue
-
-                    # Send update to all connected players
-                    for (gid, pid), conn in list(local_sockets.items()):
-                        if gid == game_id:
-                            try:
-                                await conn.send_text(json.dumps(parsed))
-                            except Exception as e:
-                                print(f"WebSocket send failed: {e}")
+                msg = pubsub.get_message(ignore_subscribe_messages=True)
+                if msg:
+                    data = json.loads(msg["data"])
+                    await websocket.send_text(json.dumps(data))
                 await asyncio.sleep(0.1)
-        except asyncio.CancelledError:
-            print(f"Redis listener cancelled for game {game_id}")
+        except Exception as err:
+            print("Redis listener error:", err)
+        finally:
             pubsub.close()
 
-    try:
-        task = asyncio.create_task(redis_listener())
-        while True:
-            data = await websocket.receive_text()
-            try:
-                message = json.loads(data)
+    listener_task = asyncio.create_task(redis_listener())
 
-                # Handle dead stone toggling & seki eyes for japanese scoring
+    try:
+        while True:
+            if not is_spectator:
+                raw = await websocket.receive_text()
+                message = json.loads(raw)
+
                 if message["type"] == "toggle_dead_stone":
                     group = message.get("group", [])
-                    pid = message["player_id"]
-
-                    # Fetch current game
+                    pid   = message.get("player_id")
                     game_data = redis_client.get(f"game:{game_id}")
                     if not game_data:
                         continue
 
                     game = GameState.from_dict(json.loads(game_data))
                     color = game.players.get(pid)
-
-                    if color == Stone.BLACK.value:
-                        dead_list = set(game.dead_black or [])
-                    else:
-                        dead_list = set(game.dead_white or [])
-
+                    dead_list = set(getattr(game, "dead_black" if color == Stone.BLACK.value else "dead_white", []))
                     group_set = set(group)
                     if group_set.issubset(dead_list):
-                        # If all in group are already dead, remove them
                         dead_list -= group_set
                     else:
-                        # Otherwise, add them
                         dead_list |= group_set
-
                     if color == Stone.BLACK.value:
                         game.dead_black = list(dead_list)
                     else:
                         game.dead_white = list(dead_list)
 
-                    # Save updated game back to Redis
                     redis_client.set(f"game:{game_id}", json.dumps(game.to_dict()))
-
-                    # Broadcast the toggle to the other player
                     payload = {
                         "type": "toggle_dead_stone",
                         "index": list(group_set),
@@ -419,13 +426,12 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str 
                     redis_client.publish(f"game_updates:{game_id}", json.dumps(payload))
 
                 elif message["type"] == "finalize_score":
-                    pid = message["player_id"]
+                    pid = message.get("player_id")
                     game_data = redis_client.get(f"game:{game_id}")
                     if not game_data:
                         continue
 
                     game = GameState.from_dict(json.loads(game_data))
-
                     if not hasattr(game, "finalized_players"):
                         game.finalized_players = []
 
@@ -440,10 +446,8 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str 
                     ):
                         agreed = set(game.dead_black or [])
 
-                        # Split agreed into stones and excluded points
                         removed_stones = []
                         excluded_points = []
-
                         for idx in agreed:
                             color = game.board_state[idx]
                             if color in (Stone.BLACK.value, Stone.WHITE.value):
@@ -451,94 +455,92 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str, player_id: str 
                                 game.board_state[idx] = Stone.EMPTY.value
                             elif color == Stone.EMPTY.value:
                                 excluded_points.append(idx)
-                            # Increase captured count based on the color
                             if color == Stone.BLACK.value:
                                 game.captured_white += 1
                             elif color == Stone.WHITE.value:
                                 game.captured_black += 1
 
-                        # Save for frontend review
                         game.agreed_dead = [
                             {"index": idx, "color": color}
                             for idx, color in removed_stones
                         ]
                         game.excluded_points = excluded_points
 
-                        # Score the game based on rule set
                         rule_set = getattr(game, "rule_set", "japanese").lower()
                         if rule_set == "japanese":
                             game.final_score = game.score_game(excluded=excluded_points)
                         else:
-                            game.final_score = game.score_game()  # No exclusions for Chinese rules
+                            game.final_score = game.score_game()
 
                         game.game_over = True
                         game.in_scoring_phase = False
                         game.game_over_reason = "double_pass"
 
-                        # Determine winner
                         black_score, white_score = game.final_score
                         if black_score != white_score:
                             winner_color = Stone.BLACK if black_score > white_score else Stone.WHITE
-                            for player_id, stone in game.players.items():
+                            for pid_, stone in game.players.items():
                                 if stone == winner_color.value:
-                                    game.winner = player_id
+                                    game.winner = pid_
                                     break
                         else:
                             game.winner = None
 
-                    # Broadcast update
                     redis_client.set(f"game:{game_id}", json.dumps(game.to_dict()))
                     redis_client.publish(
                         f"game_updates:{game_id}",
+                        json.dumps({"type": "game_state", "payload": game.to_dict()})
+                    )
+
+                elif message["type"] == "chat":
+                    pid  = message.get("player_id")
+                    text = message.get("text", "").strip()
+                    if not text:
+                        continue
+
+                    game_data = redis_client.get(f"game:{game_id}")
+                    if not game_data:
+                        continue
+
+                    game = GameState.from_dict(json.loads(game_data))
+                    color = game.players.get(pid)
+                    sender = "Black" if color == Stone.BLACK.value else "White"
+                    censored = profanity.censor(text)
+
+                    redis_client.publish(
+                        f"game_updates:{game_id}",
                         json.dumps({
-                            "type": "game_state",
-                            "payload": game.to_dict()
+                            "type": "chat",
+                            "sender": sender,
+                            "text": censored,
+                            "source": connection_id
                         })
                     )
-                elif message["type"] == "chat":
-                    player_id = message["player_id"]
-                    text = message["text"].strip()
-
-                    if text:
-                        # Determine player's stone color
-                        game_data = redis_client.get(f"game:{game_id}")
-                        if not game_data:
-                            continue
-                        game = GameState.from_dict(json.loads(game_data))
-                        color = game.players.get(player_id)
-
-                        color_label = "Black" if color == Stone.BLACK.value else "White"
-
-                        censoredText = profanity.censor(text)
-                        redis_client.publish(
-                            f"game_updates:{game_id}",
-                            json.dumps({
-                                "type": "chat",
-                                "sender": color_label,
-                                "text": censoredText,
-                                "source": connection_id
-                            })
-                        )
-            except Exception as e:
-                print(f"Error handling WebSocket message: {e}")
+            else:
+                await asyncio.sleep(1)
 
     except WebSocketDisconnect:
-        if player_id:
-            local_sockets.pop((game_id, player_id), None)
+        print(f"WebSocket disconnected for game {game_id} player {player_id} role={role}")
+        local_sockets.pop((game_id, player_id), None)
+
+        if not is_spectator:
             remove_active_connection(game_id, player_id)
-
-        record_disconnect_time(game_id, player_id, redis_client)
-
-        # Notify remaining player(s) that this player disconnected
-        disconnect_notice = {
-            "type": "disconnect_notice",
-            "disconnected_player": player_id,
-            "timestamp": time.time(),
-            "timeout_seconds": 60
-        }
-        redis_client.publish(f"game_updates:{game_id}", json.dumps(disconnect_notice))
-
-        task.cancel()
+            record_disconnect_time(game_id, player_id, redis_client)
+            redis_client.publish(
+                f"game_updates:{game_id}",
+                json.dumps({
+                    "type": "disconnect_notice",
+                    "disconnected_player": player_id,
+                    "timestamp": time.time(),
+                    "timeout_seconds": 60
+                })
+            )
+    finally:
+        listener_task.cancel()
+        try:
+            await listener_task
+        except asyncio.CancelledError:
+            pass
 
 ### DEBUG ROUTES ###
 @app.get("/debug/redis")

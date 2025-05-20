@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+  <title>Spectate Game</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+  <script>
+    const gameId = "{{ game_id }}";
+  </script>
+</head>
+<body>
+  <div class="main-container">
+    <div class="board-section">
+      <canvas id="spectateCanvas"></canvas>
+    </div>
+
+    <div class="side-panel">
+      <div id="gameOverMessage" style="display:none; text-align:center; margin-top:1em; font-weight:bold;"></div>
+      <h2>Spectator Chat</h2>
+      <div id="chatMessages" style="height: 300px; overflow-y: auto; background: #eee; padding: 5px;"></div>
+    </div>
+  </div>
+
+  <script type="module" src="{{ url_for('static', path='/spectate.js') }}"></script>
+</body>
+</html>
