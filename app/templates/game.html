@@ -11,8 +11,10 @@
   </script>
   <script defer type="module" src="{{ url_for('static', path='/board.js') }}"></script>
   <script defer src="{{ url_for('static', path='/sgf_exporter.js')}}"></script>
+  <script type="module" src="{{ url_for('static', path='/navbar.js') }}"></script>
 </head>
 <body>
+  <nav-bar></nav-bar>
   <div class="main-container">
     <div class="board-section">
       <div id="countdown" style="margin-top: 0; font-weight: bold; color: #990033;"></div>

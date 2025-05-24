@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; }
+    fieldset { margin-bottom: 1.5rem; padding: 1rem; border-radius: 5px; }
+    legend { font-weight: bold; }
+    label { display: block; margin: 0.5rem 0; }
+    input[type="text"],
+    input[type="number"],
+    input[type="url"],
+    input[type="datetime-local"] {
+      width: 100%;
+      padding: 0.5rem;
+      box-sizing: border-box;
+      margin-top: 0.25rem;
+    }
+    button { padding: 0.75rem 1.5rem; font-size: 1rem; }
+    .updated { margin-bottom: 1rem; color: #555; font-style: italic; }
+  </style>
+  <script defer src="{{ url_for('static', path='/admin_dashboard.js')}}"></script>
+  <script type="module" src="{{ url_for('static', path='/navbar.js') }}"></script>
+</head>
+<body>
+  <nav-bar></nav-bar>
+  <h1>Admin Dashboard</h1>
+  {% if settings.updated_at %}
+    <p class="updated">Last updated: {{ settings.updated_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+  {% endif %}
+  <div id="settingsContainer">
+    <!-- Inputs will be populated by JS -->
+    <fieldset>
+        <legend>Snackbar Configuration</legend>
+        <label>
+        <input type="checkbox" id="snackbar_active" />
+        Snackbar Active
+        </label>
+        <label>
+        Message:
+        <input type="text" id="snackbar_message" />
+        </label>
+        <label>
+        Timeout (seconds):
+        <input type="number" id="snackbar_timeout_seconds" min="1" />
+        </label>
+    </fieldset>
+
+    <fieldset>
+        <legend>Sponsorship Banner</legend>
+        <label>
+        <input type="checkbox" id="sponsor_active" />
+        Sponsor Active
+        </label>
+        <label>
+        Desktop Image URL:
+        <input type="url" id="sponsor_image_desktop" />
+        </label>
+        <label>
+        Mobile Image URL:
+        <input type="url" id="sponsor_image_mobile" />
+        </label>
+        <label>
+        Target URL:
+        <input type="url" id="sponsor_target_url" />
+        </label>
+    </fieldset>
+  </div>
+
+  <button id="saveSettingsBtn">Save Settings</button>
+</body>
+</html>

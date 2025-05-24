@@ -7,9 +7,10 @@
     <title>Go</title>
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', path='/styles.css') }}">
     <script defer src="{{ url_for('static', path='/main.js') }}"></script>
+    <script type="module" src="{{ url_for('static', path='/navbar.js') }}"></script>
   </head>
   <body>
-    <div>
+      <nav-bar></nav-bar>
       <h1>Cornugopia</h1>
 
       <!-- Create Game -->
@@ -246,6 +247,11 @@
           <button id="nextPageBtn">Next »</button>
         </div>
       </section>
-    </div>
+
+    <!-- Snackbar Container -->
+    <div id="snackbar"></div>
+
+    <!-- Sponsor banner -->
+    <div id="sponsor-container"></div>
   </body>
 </html>

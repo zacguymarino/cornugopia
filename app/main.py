@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect, Query
+from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect, Query, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import JSONResponse
@@ -14,13 +14,16 @@ from game_helper import do_join, remove_public_game
 from timers import record_disconnect_time, clear_disconnect_time, clear_all_disconnects, start_timer_for_game, start_join_timeout_for_game, join_timeout_tasks
 from better_profanity import profanity
 from db import async_session
-from models import PublicGame
+from models import PublicGame, SiteSettings
 from redis_client import redis_client
 from typing import Optional
 from sqlalchemy import func
 from sqlalchemy.future import select
+from admin_settings import router as admin_router
 
 app = FastAPI()
+
+app.include_router(admin_router)
 
 app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 

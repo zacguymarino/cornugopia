@@ -330,6 +330,7 @@ document.addEventListener("DOMContentLoaded", function () {
     gameTypeSelect.addEventListener("change", updateCreateRankUI);
     allowHandicapsCheckbox.addEventListener("change", updateCreateRankUI);
     updateCreateRankUI();
+    loadSiteSettings();
 });
 
 function clearRankSelectionUI() {
@@ -401,4 +402,44 @@ function getRankSelectHTML(selectId = "estimatedRank") {
 
 function getConfirmJoinButtonHTML(buttonId = "confirmJoinBtn", text = "Confirm and Join") {
     return `<button id="${buttonId}">${text}</button>`;
+}
+
+async function loadSiteSettings() {
+    try {
+        const res = await fetch("/admin/settings");
+        if (!res.ok) return;
+        const s = await res.json();
+
+        // Snackbar
+        if (s.snackbar_active) {
+        const sb = document.getElementById("snackbar");
+        sb.textContent = s.snackbar_message;
+        sb.classList.add("show");
+        setTimeout(() => sb.classList.remove("show"), s.snackbar_timeout_seconds * 1000);
+        }
+
+        // Sponsor
+        if (s.sponsor_active) {
+        const container = document.getElementById("sponsor-container");
+        container.classList.add("active");
+        
+        const link = document.createElement("a");
+        link.href = s.sponsor_target_url || "#";
+
+        const imgDesktop = document.createElement("img");
+        imgDesktop.src = s.sponsor_image_desktop;
+        imgDesktop.alt = "Sponsor";
+        imgDesktop.classList.add("desktop");
+
+        const imgMobile = document.createElement("img");
+        imgMobile.src = s.sponsor_image_mobile;
+        imgMobile.alt = "Sponsor";
+        imgMobile.classList.add("mobile");
+
+        link.append(imgDesktop, imgMobile);
+        container.append(link);
+        }
+    } catch (err) {
+        console.error("Could not load site settings:", err);
+    }
 }
