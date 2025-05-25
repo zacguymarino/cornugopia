@@ -79,6 +79,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     return;
                 }
 
+                gameIdDisplay.style.fontWeight = "600";
                 gameIdDisplay.textContent = `Game ID: ${data.game_id}`;
             } else {
                 alert(data.detail || "Failed to create game.");

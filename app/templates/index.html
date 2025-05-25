@@ -4,62 +4,203 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>Go</title>
+    <title>Cornugopia</title>
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', path='/styles.css') }}">
     <script defer src="{{ url_for('static', path='/main.js') }}"></script>
     <script type="module" src="{{ url_for('static', path='/navbar.js') }}"></script>
   </head>
   <body>
       <nav-bar></nav-bar>
-      <h1>Cornugopia</h1>
 
-      <!-- Create Game -->
-      <div>
-        <h3>Create Game</h3>
-        <label for="gameType">Game Type:</label>
-        <select id="gameType">
-          <option value="private" selected>Private</option>
-          <option value="public">Public</option>
-        </select>
-        <label for="boardSize">Select Board Size:</label>
-        <select id="boardSize">
-          <option value="19" selected>19x19</option>
-          <option value="13">13x13</option>
-          <option value="9">9x9</option>
-        </select>
-      
-        <label for="timeControl">Time:</label>
-        <select id="timeControl">
-          <option value="none">None</option>
-          <option value="15">15 seconds</option>
-          <option value="300">5 minutes</option>
-          <option value="600">10 minutes</option>
-          <option value="900">15 minutes</option>
-          <option value="1800">30 minutes</option>
-          <option value="3600">1 hour</option>
-          <option value="7200">2 hours</option>
-        </select>
+      <div id="sections-container">
+        <!-- Create Game -->
+        <div class="section create-section">
+          <h3>Create Game</h3>
+        
+          <div class="form-group">
+            <label for="gameType">Game Type:</label>
+            <select id="gameType">
+              <option value="private" selected>Private</option>
+              <option value="public">Public</option>
+            </select>
+          </div>
+        
+          <div class="form-group">
+            <label for="boardSize">Select Board Size:</label>
+            <select id="boardSize">
+              <option value="19" selected>19x19</option>
+              <option value="13">13x13</option>
+              <option value="9">9x9</option>
+            </select>
+          </div>
+        
+          <div class="form-group">
+            <label for="timeControl">Time:</label>
+            <select id="timeControl">
+              <option value="none">None</option>
+              <option value="15">15 seconds</option>
+              <option value="300">5 minutes</option>
+              <option value="600">10 minutes</option>
+              <option value="900">15 minutes</option>
+              <option value="1800">30 minutes</option>
+              <option value="3600">1 hour</option>
+              <option value="7200">2 hours</option>
+            </select>
+          </div>
+        
+          <div id="byoYomiSettings" class="byo-yomi-settings">
+            <div class="form-group">
+              <label for="byoYomiPeriods">Byo-Yomi Periods:</label>
+              <select id="byoYomiPeriods">
+                <option value="0" selected>None</option>
+                <option value="1">1 period</option>
+                <option value="2">2 periods</option>
+                <option value="3">3 periods</option>
+                <option value="4">4 periods</option>
+                <option value="5">5 periods</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="byoYomiTime">Seconds per Period:</label>
+              <select id="byoYomiTime" disabled>
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="15">15</option>
+                <option value="20">20</option>
+                <option value="25">25</option>
+                <option value="30" selected>30</option>
+                <option value="35">35</option>
+                <option value="40">40</option>
+                <option value="45">45</option>
+                <option value="50">50</option>
+                <option value="55">55</option>
+                <option value="60">60</option>
+              </select>
+            </div>
+          </div>
+        
+          <div class="form-group">
+            <label for="ruleSet">Scoring Rules:</label>
+            <select id="ruleSet">
+              <option value="japanese" selected>Japanese</option>
+              <option value="chinese">Chinese</option>
+            </select>
+          </div>
+        
+          <div class="form-group checkbox-group">
+            <input type="checkbox" id="allowHandicaps">
+            <label for="allowHandicaps">Allow Handicaps</label>
+          </div>
+        
+          <div id="createRankContainer" class="form-group">
+            <!-- dynamic rank selector will be injected here -->
+          </div>
+        
+          <div class="form-group">
+            <label for="colorPreference">Color Preference:</label>
+            <select id="colorPreference">
+              <option value="random" selected>Random</option>
+              <option value="black">Black</option>
+              <option value="white">White</option>
+            </select>
+          </div>
+        
+          <div class="form-group">
+            <label for="komiInput">Komi:</label>
+            <input
+              type="number"
+              id="komiInput"
+              value="6.5"
+              step="1"
+              min="0.5"
+              max="50.5"
+            />
+          </div>
+        
+          <div class="form-actions">
+            <button id="createGameBtn">Create Game</button>
+          </div>
+        
+          <p id="gameIdDisplay"></p>
+        </div>
+        
+        <!-- Spectate Game -->
+        <div id="spectateSection" class="section spectate-section">
+          <h3>Spectate Game</h3>
+          <input
+            type="text"
+            id="spectateGameId"
+            placeholder="Enter Game ID to Spectate"
+          />
+          <button id="spectateBtn">Spectate</button>
+        </div>
 
-        <div id="byoYomiSettings" style="margin-top: 15px;">
-          <label for="byoYomiPeriods">Byo-Yomi Periods:</label>
-          <select id="byoYomiPeriods">
-            <option value="0" selected>None</option>
-            <option value="1">1 period</option>
-            <option value="2">2 periods</option>
-            <option value="3">3 periods</option>
-            <option value="4">4 periods</option>
-            <option value="5">5 periods</option>
-          </select>
+        <!-- Join Game -->
+        <div class="section join-section">
+          <h3>Join Game</h3>
+          <input type="text" id="gameIdInput" placeholder="Enter Game ID">
+          <button id="joinGameBtn">Join Game</button>
+          <div id="rankSelectionContainer"></div>
+        </div>
+      </div>
 
-          <div style="margin-top: 10px;">
-            <label for="byoYomiTime">Seconds per Period:</label>
-            <select id="byoYomiTime" disabled>
+      <!-- Public Games Browser -->
+      <section id="publicGamesSection" class="section browse-section">
+        <h3>Browse Public Games</h3>
+        <div class="filter-controls">
+          <label><input type="checkbox" id="publicAll" /> All</label>
+        
+          <!-- Board Size -->
+          <label>Size:
+            <select id="filterBoardSize">
+              <option value="" selected>Any</option>
+              <option value="19" >19x19</option>
+              <option value="13">13x13</option>
+              <option value="9">9x9</option>
+            </select>
+          </label>
+        
+          <!-- Time Control -->
+          <label>Time:
+            <select id="filterTimeControl">
+              <option value="" selected>Any</option>
+              <option value="none">None</option>
+              <option value="15">15 seconds</option>
+              <option value="300">5 minutes</option>
+              <option value="600">10 minutes</option>
+              <option value="900">15 minutes</option>
+              <option value="1800">30 minutes</option>
+              <option value="3600">1 hour</option>
+              <option value="7200">2 hours</option>
+              <!-- … -->
+            </select>
+          </label>
+        
+          <!-- Handicap -->
+          <label><input type="checkbox" id="filterHandicap" /> Handicap only</label>
+        
+          <!-- Byo-yomi -->
+          <label>Byo-yomi:
+            <select id="filterByoYomiPeriods">
+              <option value="" selected>Any</option>
+              <option value="0">None</option>
+              <option value="1">1 period</option>
+              <option value="2">2 periods</option>
+              <option value="3">3 periods</option>
+              <option value="4">4 periods</option>
+              <option value="5">5 periods</option>
+              <!-- … up to 5 -->
+            </select>
+          </label>
+          <label>Period Time(s):
+            <select id="filterByoYomiTime">
+              <option value="" selected>Any</option>
               <option value="5">5</option>
               <option value="10">10</option>
               <option value="15">15</option>
               <option value="20">20</option>
               <option value="25">25</option>
-              <option value="30" selected>30</option>
+              <option value="30">30</option>
               <option value="35">35</option>
               <option value="40">40</option>
               <option value="45">45</option>
@@ -67,161 +208,35 @@
               <option value="55">55</option>
               <option value="60">60</option>
             </select>
-          </div>
-        </div>
-      
-        <label for="ruleSet">Scoring Rules:</label>
-        <select id="ruleSet">
-          <option value="japanese" selected>Japanese</option>
-          <option value="chinese">Chinese</option>
-        </select>
-
-        <div id="handicapSettings" style="margin-top: 20px; padding: 10px; border: 1px solid #aaa; border-radius: 5px;">
-          <label for="allowHandicaps">
-            <input type="checkbox" id="allowHandicaps">
-            Allow Handicaps
           </label>
-        </div>
-
-        <div id="createRankContainer" style="margin-top:10px;"></div>
         
-        <label for="colorPreference">Color Preference:</label>
-        <select id="colorPreference">
-          <option value="random" selected>Random</option>
-          <option value="black">Black</option>
-          <option value="white">White</option>
-        </select>
-
-        <label for="komiInput">Komi (points for White):</label>
-        <input
-          type="number"
-          id="komiInput"
-          value="6.5"
-          step="1"
-          min="0.5"
-          max="50.5"
-          style="width: 60px;"
-        />
-      
-        <button id="createGameBtn">Create Game</button>
-        <p id="gameIdDisplay"></p> <!-- Will display the created game ID -->
-      </div>
-
-      <!-- Spectate Game -->
-      <div id="spectateSection" style="margin-top: 1.5em;">
-        <h3>Spectate Game</h3>
-        <input
-          type="text"
-          id="spectateGameId"
-          placeholder="Enter Game ID to Spectate"
-          style="width: 200px; padding: 4px;"
-        />
-        <button id="spectateBtn" style="padding: 6px 12px; margin-left:4px;">
-          Spectate
-        </button>
-      </div>
-
-      <!-- Join Game -->
-      <div>
-        <h3>Join Game</h3>
-        <input type="text" id="gameIdInput" placeholder="Enter Game ID">
-        <button id="joinGameBtn">Join Game</button>
-        <div id="rankSelectionContainer"></div>
-      </div>
-
-      <!-- Public Games Browser -->
-      <section id="publicGamesSection" style="margin-top: 2em;">
-        <h3>Browse Public Games</h3>
-      
-        <label><input type="checkbox" id="publicAll" /> All</label>
-      
-        <!-- Board Size -->
-        <label>Size:
-          <select id="filterBoardSize">
-            <option value="" selected>Any</option>
-            <option value="19" >19x19</option>
-            <option value="13">13x13</option>
-            <option value="9">9x9</option>
-          </select>
-        </label>
-      
-        <!-- Time Control -->
-        <label>Time:
-          <select id="filterTimeControl">
-            <option value="" selected>Any</option>
-            <option value="none">None</option>
-            <option value="15">15 seconds</option>
-            <option value="300">5 minutes</option>
-            <option value="600">10 minutes</option>
-            <option value="900">15 minutes</option>
-            <option value="1800">30 minutes</option>
-            <option value="3600">1 hour</option>
-            <option value="7200">2 hours</option>
-            <!-- … -->
-          </select>
-        </label>
-      
-        <!-- Handicap -->
-        <label><input type="checkbox" id="filterHandicap" /> Handicap only</label>
-      
-        <!-- Byo-yomi -->
-        <label>Byo-yomi periods:
-          <select id="filterByoYomiPeriods">
-            <option value="" selected>Any</option>
-            <option value="0">None</option>
-            <option value="1">1 period</option>
-            <option value="2">2 periods</option>
-            <option value="3">3 periods</option>
-            <option value="4">4 periods</option>
-            <option value="5">5 periods</option>
-            <!-- … up to 5 -->
-          </select>
-        </label>
-        <label>Seconds per period:
-          <select id="filterByoYomiTime">
-            <option value="" selected>Any</option>
-            <option value="5">5</option>
-            <option value="10">10</option>
-            <option value="15">15</option>
-            <option value="20">20</option>
-            <option value="25">25</option>
-            <option value="30">30</option>
-            <option value="35">35</option>
-            <option value="40">40</option>
-            <option value="45">45</option>
-            <option value="50">50</option>
-            <option value="55">55</option>
-            <option value="60">60</option>
-          </select>
-        </label>
-      
-        <!-- Ruleset -->
-        <label>Scoring:
-          <select id="filterRuleSet">
-            <option value="" selected>Any</option>
-            <option value="japanese">Japanese</option>
-            <option value="chinese">Chinese</option>
-          </select>
-        </label>
-      
-        <!-- Color Preference -->
-        <label>Color:
-          <select id="filterColorPref">
-            <option value="" selected>Any</option>
-            <option value="random">Random</option>
-            <option value="black">Black</option>
-            <option value="white">White</option>
-          </select>
-        </label>
-      
-        <!-- Komi -->
-        <label>Komi:
-          <input type="number" id="filterKomi" step="0.5" placeholder="Any" style="width:50px"/>
-        </label>
-      
-        <button id="publicFilterBtn">Refresh</button>
-
-        <table id="publicGamesTable" border="1" cellpadding="4" style="margin-top:1em;">
+          <!-- Ruleset -->
+          <label>Scoring:
+            <select id="filterRuleSet">
+              <option value="" selected>Any</option>
+              <option value="japanese">Japanese</option>
+              <option value="chinese">Chinese</option>
+            </select>
+          </label>
+        
+          <!-- Color Preference -->
+          <label>Color:
+            <select id="filterColorPref">
+              <option value="" selected>Any</option>
+              <option value="random">Random</option>
+              <option value="black">Black</option>
+              <option value="white">White</option>
+            </select>
+          </label>
+        
+          <!-- Komi -->
+          <label>Komi:
+            <input type="number" id="filterKomi" step="0.5" placeholder="Any"/>
+          </label>
+        
+          <button id="publicFilterBtn">Refresh</button>
+        </div>
+        <table id="publicGamesTable" border="1" cellpadding="4">
           <thead>
             <tr>
               <th>ID</th>
@@ -241,7 +256,7 @@
 
         <div id="publicGamesCards" class="public-cards"></div>
 
-        <div style="margin-top:1em;">
+        <div>
           <button id="prevPageBtn">« Prev</button>
           <span id="pageInfo">Page 1</span>
           <button id="nextPageBtn">Next »</button>

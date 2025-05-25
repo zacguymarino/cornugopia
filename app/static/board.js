@@ -841,6 +841,18 @@ document.addEventListener("DOMContentLoaded", function () {
         //Add chat box hint
         goBoard.addChatHint();
 
+        //Add game details dropdown
+        const settingsHtml = `
+            <p><strong>Board Size:</strong> ${boardState.board_size}×${boardState.board_size}</p>
+            <p><strong>Time Control:</strong> ${boardState.time_control === 'none' ? 'None' : boardState.time_control + 's'}</p>
+            <p><strong>Handicaps Allowed:</strong> ${boardState.allow_handicaps ? 'Yes' : 'No'}</p>
+            <p><strong>Byo-Yomi:</strong> ${boardState.byo_yomi_periods}×${boardState.byo_yomi_time}s</p>
+            <p><strong>Ruleset:</strong> ${boardState.rule_set.charAt(0).toUpperCase() + boardState.rule_set.slice(1)}</p>
+            <p><strong>Color Pref.:</strong> ${boardState.color_preference.charAt(0).toUpperCase() + boardState.color_preference.slice(1)}</p>
+            <p><strong>Komi:</strong> ${boardState.komi}</p>
+            `;
+        document.getElementById('gameSettingsContent').innerHTML = settingsHtml;
+
         // Button handlers
         document.getElementById("passBtn").addEventListener("click", () => {
             goBoard.sendMove(-1);  // Pass
