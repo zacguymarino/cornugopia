@@ -406,7 +406,7 @@ function getConfirmJoinButtonHTML(buttonId = "confirmJoinBtn", text = "Confirm a
 
 async function loadSiteSettings() {
     try {
-        const res = await fetch("/admin/settings");
+        const res = await fetch("/settings");
         if (!res.ok) return;
         const s = await res.json();
 
@@ -422,7 +422,7 @@ async function loadSiteSettings() {
         if (s.sponsor_active) {
         const container = document.getElementById("sponsor-container");
         container.classList.add("active");
-        
+
         const link = document.createElement("a");
         link.href = s.sponsor_target_url || "#";
 

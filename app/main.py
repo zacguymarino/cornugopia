@@ -34,6 +34,27 @@ profanity.load_censor_words()
 class CreateGameRequest(BaseModel):
     board_size: int
 
+### GET SETTINGS ENDPOINT ###
+@app.get("/settings")
+async def public_settings():
+    async with async_session() as session:
+        settings = await session.get(SiteSettings, 1)
+        if not settings:
+            settings = SiteSettings(id=1)
+            session.add(settings)
+            await session.commit()
+            await session.refresh(settings)
+    return {
+        "snackbar_active":          settings.snackbar_active,
+        "snackbar_message":         settings.snackbar_message,
+        "snackbar_timeout_seconds": settings.snackbar_timeout_seconds,
+        "sponsor_active":           settings.sponsor_active,
+        "sponsor_image_desktop":    settings.sponsor_image_desktop,
+        "sponsor_image_mobile":     settings.sponsor_image_mobile,
+        "sponsor_target_url":       settings.sponsor_target_url,
+        "updated_at":               settings.updated_at.isoformat() if settings.updated_at else None,
+    }
+
 ### ROUTES ###
 
 @app.get("/")

@@ -13,7 +13,14 @@ import {
       this.canvas = document.getElementById(canvasId);
       this.ctx = this.canvas.getContext("2d");
       this.cellSize = 0;
-      this.doubleClickEnabled = false;  // never used for spectators
+
+      // Sound stuff
+      this.firstUpdate = true;
+      this.prevMoveCount = 0;
+      this.stoneSound = new Audio("/static/sounds/stone.ogg");
+      this.passSound  = new Audio("/static/sounds/pass.ogg");
+      this.stoneSound.load();
+      this.passSound.load();
   
       this.resizeCanvas();
       window.addEventListener("resize", () => this.resizeCanvas());
@@ -105,6 +112,19 @@ import {
           const msg = JSON.parse(evt.data);
           switch (msg.type) {
             case "game_state":
+              if (!this.firstUpdate) {
+                const moves = msg.payload.moves || [];
+                if (moves.length > this.prevMoveCount) {
+                  const lastMove = moves[moves.length - 1].index;
+                  if (lastMove === -1) {
+                    this.passSound.play();
+                  } else {
+                    this.stoneSound.play();
+                  }
+                }
+              }
+              this.prevMoveCount = msg.payload.moves.length;
+              this.firstUpdate = false;
             case "toggle_dead_stone":
               this.handleGameState(msg.payload);
               break;

@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", function () {
     async function fetchSettings() {
-        const res = await fetch('/admin/settings');
+        const res = await fetch('/settings');
         const data = await res.json();
         // Populate fields
         document.getElementById('snackbar_active').checked = data.snackbar_active;

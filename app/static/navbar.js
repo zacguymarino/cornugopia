@@ -45,7 +45,7 @@ class NavBar extends HTMLElement {
         </style>
         <nav>
           <a class="logo" href="/">
-            <img src="/static/cornugopia.png" alt="Cornugopia logo">
+            <img src="/static/images/cornugopia.png" alt="Cornugopia logo">
             <span>Cornugopia</span>
           </a>
           <ul>

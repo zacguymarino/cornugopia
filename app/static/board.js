@@ -30,6 +30,14 @@ document.addEventListener("DOMContentLoaded", function () {
             this.doubleClickEnabled = false;
             this.pendingMoveIndex = null;
 
+            // Sound stuff
+            this.firstUpdate = true;
+            this.prevMoveCount = 0;
+            this.stoneSound = new Audio("/static/sounds/stone.ogg");
+            this.passSound  = new Audio("/static/sounds/pass.ogg");
+            this.stoneSound.load();
+            this.passSound.load();
+
             //Game review stuff
             this.reviewIndex = null;
             this.originalGameState = null;
@@ -86,6 +94,20 @@ document.addEventListener("DOMContentLoaded", function () {
                             break;
             
                         case "game_state":
+                            if (!this.firstUpdate) {
+                                const moves = message.payload.moves || [];
+                                if (moves.length > this.prevMoveCount) {
+                                  const lastMove = moves[moves.length - 1].index;
+                                  if (lastMove === -1) {
+                                    this.passSound.play();
+                                  } else {
+                                    this.stoneSound.play();
+                                  }
+                                }
+                            }
+                            this.firstUpdate = false;
+                            this.prevMoveCount = (message.payload.moves || []).length;
+
                             this.updateBoard(message.payload);
                             break;
 
