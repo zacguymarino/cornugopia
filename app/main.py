@@ -61,6 +61,10 @@ async def public_settings():
 def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
+@app.get("/about")
+def about_page(request: Request):
+    return templates.TemplateResponse("about.html", {"request": request})
+
 @app.get("/game/{game_id}")
 def get_game(request: Request, game_id: str):
     game_data = redis_client.get(f"game:{game_id}")

@@ -9,7 +9,7 @@
     <script defer src="{{ url_for('static', path='/main.js') }}"></script>
     <script type="module" src="{{ url_for('static', path='/navbar.js') }}"></script>
   </head>
-  <body>
+  <body class="main-body">
       <nav-bar></nav-bar>
 
       <div id="sections-container">
@@ -88,8 +88,8 @@
           </div>
         
           <div class="form-group checkbox-group">
+            <label for="allowHandicaps">Allow Handicaps:</label>
             <input type="checkbox" id="allowHandicaps">
-            <label for="allowHandicaps">Allow Handicaps</label>
           </div>
         
           <div id="createRankContainer" class="form-group">
@@ -138,7 +138,7 @@
         <!-- Join Game -->
         <div class="section join-section">
           <h3>Join Game</h3>
-          <input type="text" id="gameIdInput" placeholder="Enter Game ID">
+          <input type="text" id="gameIdInput" placeholder="Enter Game ID to Join">
           <button id="joinGameBtn">Join Game</button>
           <div id="rankSelectionContainer"></div>
         </div>

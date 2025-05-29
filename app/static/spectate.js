@@ -98,7 +98,10 @@ import {
         // Ensure each spectator has a stable 8-char ID in localStorage
         let specId = localStorage.getItem("zg_player_id");
         if (!specId) {
-          specId = crypto.randomUUID().substring(0, 8);
+          const base = crypto.randomUUID?.() 
+            ? crypto.randomUUID() 
+            : URL.createObjectURL(new Blob());
+          specId = base.slice(-8);
           localStorage.setItem("zg_player_id", specId);
         }
     

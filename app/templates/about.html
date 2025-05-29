@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+  <title>About Cornugopia</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+  <script type="module" src="{{ url_for('static', path='/navbar.js') }}"></script>
+</head>
+<body class="main-body">
+  <nav-bar></nav-bar>
+
+  <div class="section about-intro">
+    <h2>About Cornugopia</h2>
+    <p>
+      Cornugopia is an open-source Go server designed for friendly matches—
+      no login required. It supports both private games with friends and
+      public games with custom rules.
+    </p>
+    <p>
+      View the source on
+      <a href="https://github.com/zacguymarino/cornugopia" target="_blank" rel="noopener">GitHub</a>.
+    </p>
+  </div>
+
+  <div class="section about-privacy">
+    <h2>Privacy Policy</h2>
+    <p>
+      We don’t use any third-party trackers or cookies.  The only data stored
+      on your device is a temporary player ID in
+      <code>localStorage</code>, used to keep you identified across sessions.
+    </p>
+  </div>
+
+  <div class="section about-support">
+    <h2>Support &amp; Sponsorship</h2>
+    <p>
+      Cornugopia is built and maintained by a solo developer.  Hosting and
+      maintenance costs are covered through voluntary support:
+    </p>
+    <ul>
+      <li>
+        <a href="https://buymeacoffee.com/zacguy" target="_blank" rel="noopener">
+          Buy me a coffee
+        </a>
+      </li>
+      <li>
+        Interested in sponsoring?  A banner ad appears on the main page.
+        Contact <a href="mailto:{{ sponsor_email }}">{{ sponsor_email }}</a>
+        for rates and specs.
+      </li>
+    </ul>
+  </div>
+</body>
+</html>
