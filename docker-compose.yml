@@ -1,21 +1,27 @@
+version: "3.8"
+
 services:
   fastapi_app:
     build: .
+    working_dir: /app/app
+    command: >
+      gunicorn -k uvicorn.workers.UvicornWorker
+      -w 4 -b 0.0.0.0:8000 main:app --reload
     ports:
       - "8000:8000"
     volumes:
-      - ./app:/app  # Allows live reloading when files change
+      - ./app:/app/app
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/postgres
     depends_on:
       - db
       - redis
-  
+
   redis:
-    image: "redis:latest"
+    image: redis:latest
     container_name: redis
     ports:
-      - "6379:6379" 
+      - "6379:6379"
 
   db:
     image: postgres:15
