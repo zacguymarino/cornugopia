@@ -22,6 +22,9 @@ COPY . .
 # Move into the app directory
 WORKDIR /app/app
 
+# Make /app/static point at the local real static assets
+RUN ln -s /app/app/static /app/static
+
 # Expose the port FastAPI listens on
 EXPOSE 8000
 
