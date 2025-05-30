@@ -12,6 +12,6 @@ if DATABASE_URL.startswith("postgres://"):
 
 DATABASE_URL = DATABASE_URL.split("?", 1)[0]
 
-engine = create_async_engine(DATABASE_URL, echo=True)
+engine = create_async_engine(DATABASE_URL, echo=True, connect_args={"ssl": False})
 async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 Base = declarative_base()
