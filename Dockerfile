@@ -25,6 +25,9 @@ WORKDIR /app/app
 # Make /app/static point at the local real static assets
 RUN ln -s /app/app/static /app/static
 
+# Make /app/templates point at the local real templates
+RUN ln -s /app/app/templates /app/templates
+
 # Expose the port FastAPI listens on
 EXPOSE 8000
 
