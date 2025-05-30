@@ -24,8 +24,13 @@ jobs:
 
       - name: Run tests
         run: |
-          # (replace with your test command if any)
-          pytest --maxfail=1 --disable-warnings -q
+          if [ -d tests ]; then
+            echo "tests/ found — installing pytest and running tests"
+            pip install pytest
+            pytest --maxfail=1 --disable-warnings -q
+          else
+            echo "No tests/ directory, skipping test step"
+          fi
 
   deploy:
     needs: build
