@@ -14,6 +14,8 @@ from pydantic import BaseModel, validator
 from db import async_session
 from models import SiteSettings
 
+from main import templates
+
 #
 #  ── HTTP BASIC SECURITY ─────────────────────────────────────────────────────────
 #
@@ -42,8 +44,6 @@ router = APIRouter(
     tags=["admin"],
     dependencies=[Depends(get_current_admin)]
 )
-
-templates = Jinja2Templates(directory="/app/templates")
 
 #
 #  ── PAYLOAD MODEL ───────────────────────────────────────────────────────────────
@@ -85,30 +85,6 @@ async def admin_dashboard(
             "settings": settings,   # now available to your template
         }
     )
-
-# @router.get(
-#     "/settings"
-# )
-# async def get_settings():
-#     """Load (or create) the singleton SiteSettings row and return it."""
-#     async with async_session() as session:
-#         settings = await session.get(SiteSettings, 1)
-#         if not settings:
-#             settings = SiteSettings(id=1)
-#             session.add(settings)
-#             await session.commit()
-#             await session.refresh(settings)
-
-#     return {
-#         "snackbar_active":          settings.snackbar_active,
-#         "snackbar_message":         settings.snackbar_message,
-#         "snackbar_timeout_seconds": settings.snackbar_timeout_seconds,
-#         "sponsor_active":           settings.sponsor_active,
-#         "sponsor_image_desktop":    settings.sponsor_image_desktop,
-#         "sponsor_image_mobile":     settings.sponsor_image_mobile,
-#         "sponsor_target_url":       settings.sponsor_target_url,
-#         "updated_at":               settings.updated_at.isoformat()       if settings.updated_at       else None,
-#     }
 
 @router.post(
     "/settings",

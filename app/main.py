@@ -20,18 +20,18 @@ from redis_client import redis_client
 from typing import Optional
 from sqlalchemy import func
 from sqlalchemy.future import select
-from admin_settings import router as admin_router
 
 BASE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI()
 
-app.include_router(admin_router)
-
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 templates.env.globals["url_for"] = app.url_path_for
+
+from admin_settings import router as admin_router
+app.include_router(admin_router)
 
 profanity.load_censor_words()
 
