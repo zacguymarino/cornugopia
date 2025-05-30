@@ -19,6 +19,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy app code
 COPY . .
 
+# Move into the app directory
+WORKDIR /app/app
+
 # Expose the port FastAPI listens on
 EXPOSE 8000
 
