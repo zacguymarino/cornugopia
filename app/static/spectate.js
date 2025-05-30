@@ -93,6 +93,11 @@ import {
       ctx.stroke();
       ctx.restore();
     }
+
+    getWebSocketUrl(path) {
+      const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      return `${proto}://${window.location.host}${path}`;
+    }
   
     connectWebSocket(gameId) {
         // Ensure each spectator has a stable 8-char ID in localStorage
@@ -105,8 +110,9 @@ import {
           localStorage.setItem("zg_player_id", specId);
         }
     
+        const wsPath = `/ws/${gameId}?player_id=${specId}&role=spectator`;
         this.socket = new WebSocket(
-          `ws://${window.location.host}/ws/${gameId}?player_id=${specId}&role=spectator`
+          this.getWebSocketUrl(wsPath)
         );
 
         this.socket.onopen = () => console.log("Spectator WS open:", specId);

@@ -47,9 +47,15 @@ document.addEventListener("DOMContentLoaded", function () {
             this.canvas.addEventListener("click", (event) => this.handleClick(event));
         }
 
+        getWebsocketUrl(path) {
+            const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            return `${proto}://${window.location.host}${path}`;
+        }
+
         /** Connect to WebSocket for real-time updates */
         connectWebSocket(gameId, playerId) {
-            this.socket = new WebSocket(`ws://${window.location.host}/ws/${gameId}?player_id=${playerId}`);
+            const wsPath = `/ws/${gameId}?player_id=${playerId}`;
+            this.socket = new WebSocket(this.getWebsocketUrl(wsPath));
 
             this.socket.onopen = () => {
                 console.log("Connected to WebSocket for game updates");
