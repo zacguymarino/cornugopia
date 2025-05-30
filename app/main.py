@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconn
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import JSONResponse
+from pathlib import Path
 from pydantic import BaseModel
 import traceback
 import time
@@ -21,13 +22,16 @@ from sqlalchemy import func
 from sqlalchemy.future import select
 from admin_settings import router as admin_router
 
+BASE_DIR = Path(__file__).resolve().parent
+
 app = FastAPI()
 
 app.include_router(admin_router)
 
-app.mount("/static", StaticFiles(directory="/app/static"), name="static")
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
-templates = Jinja2Templates(directory="/app/templates")
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+templates.env.globals["url_for"] = app.url_path_for
 
 profanity.load_censor_words()
 
