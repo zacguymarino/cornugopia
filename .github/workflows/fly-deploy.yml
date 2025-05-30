@@ -40,9 +40,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Fly CLI
-        run: |
-          curl -L https://fly.io/install.sh | sh
-          echo "${{ runner.tool_cache }}/flyctl/bin" >> $GITHUB_PATH
+        uses: superfly/flyctl-actions/setup-flyctl@v1
+        with:
+          version: latest
 
       - name: Authenticate with Fly
         run: flyctl auth token ${{ secrets.FLY_API_TOKEN }}
