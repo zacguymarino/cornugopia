@@ -1,18 +1,46 @@
-# See https://fly.io/docs/app-guides/continuous-deployment-with-github-actions/
+name: Build & Deploy to Fly
 
-name: Fly Deploy
 on:
   push:
     branches:
       - main
+
 jobs:
-  deploy:
-    name: Deploy app
+  build:
     runs-on: ubuntu-latest
-    concurrency: deploy-group    # optional: ensure only one action runs at a time
     steps:
-      - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: |
+          # (replace with your test command if any)
+          pytest --maxfail=1 --disable-warnings -q
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Fly CLI
+        run: |
+          curl -L https://fly.io/install.sh | sh
+          echo "${{ runner.tool_cache }}/flyctl/bin" >> $GITHUB_PATH
+
+      - name: Authenticate with Fly
+        run: flyctl auth token ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Deploy to Fly
+        run: flyctl deploy --config fly.toml --remote-only
