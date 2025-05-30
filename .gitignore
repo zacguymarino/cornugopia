@@ -23,3 +23,6 @@ venv/
 
 # Redis volume (if used)
 dump.rdb
+
+#Fly.io
+.fly/
