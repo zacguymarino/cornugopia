@@ -14,6 +14,9 @@ import {
       this.ctx = this.canvas.getContext("2d");
       this.cellSize = 0;
 
+      // Last move index
+      this.lastMoveIndex = null;
+
       // Sound stuff
       this.firstUpdate = true;
       this.prevMoveCount = 0;
@@ -77,6 +80,33 @@ import {
         if (stone !== Stone.EMPTY) {
           const x = idx % this.size, y = Math.floor(idx/this.size);
           this.drawStone(x+1, y+1, stone===Stone.BLACK ? "black" : "white");
+        }
+      }
+      // Draw last move highlight
+      if (this.lastMoveIndex !== null) {
+        const idx = this.lastMoveIndex;
+        const gridX = idx % this.size;
+        const gridY = Math.floor(idx / this.size);
+        const cx = (gridX + 1) * this.cellSize;
+        const cy = (gridY + 1) * this.cellSize;
+
+        const stoneVal = this.board[idx];
+        let circleColor = null;
+        if (stoneVal === Stone.BLACK) {
+            circleColor = "white";
+        } else if (stoneVal === Stone.WHITE) {
+            circleColor = "black";
+        }
+
+        if (circleColor) {
+            this.ctx.save();
+            this.ctx.strokeStyle = circleColor;
+            this.ctx.lineWidth = 2;
+            const radius = this.cellSize / 3.5; // slightly smaller than stone radius
+            this.ctx.beginPath();
+            this.ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+            this.ctx.stroke();
+            this.ctx.restore();
         }
       }
     }
@@ -154,7 +184,19 @@ import {
       this.board = state.board_state.map(v =>
         v===1 ? Stone.BLACK : v===2 ? Stone.WHITE : Stone.EMPTY
       );
+      
+      // update last move index
+      const allMoves = state.moves || [];
+      if (allMoves.length > 0) {
+          const lastIdx = allMoves[allMoves.length - 1].index;
+          this.lastMoveIndex = lastIdx >= 0 ? lastIdx : null;
+      } else {
+          this.lastMoveIndex = null;
+      }
+
+      // redraw the stones
       this.redrawStones();
+
       // check game over
       if (state.game_over && !state.in_scoring_phase) {
         const msgDiv = document.getElementById("gameOverMessage");
