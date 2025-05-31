@@ -38,6 +38,9 @@ document.addEventListener("DOMContentLoaded", function () {
             this.stoneSound.load();
             this.passSound.load();
 
+            // most recent move
+            this.lastMoveIndex = null;
+
             //Game review stuff
             this.reviewIndex = null;
             this.originalGameState = null;
@@ -416,6 +419,36 @@ document.addEventListener("DOMContentLoaded", function () {
                 const pos = this.getBoardCoords(this.pendingMoveIndex);
                 this.drawStone(pos.x, pos.y, color, 0.5);  // Half-opacity
             }
+
+            // Highlight last move if it exists
+            if (this.lastMoveIndex !== null) {
+                const { x: cx, y: cy } = this.getCanvasCoords(this.lastMoveIndex);
+
+                // Decide circle color: opposite of the stone’s color
+                const stoneValue = this.board[this.lastMoveIndex];
+                let circleColor;
+                if (stoneValue === Stone.BLACK) {
+                    circleColor = "white";
+                } else if (stoneValue === Stone.WHITE) {
+                    circleColor = "black";
+                } else {
+                    circleColor = null;
+                }
+
+                if (circleColor) {
+                    this.ctx.save();
+                    this.ctx.strokeStyle = circleColor;
+                    this.ctx.lineWidth = 2;
+
+                    // radius: just a bit smaller than the stone radius (stone radius = cellSize/2.2)
+                    const radius = this.cellSize / 3.5;
+
+                    this.ctx.beginPath();
+                    this.ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+                    this.ctx.stroke();
+                    this.ctx.restore();
+                }
+            }
         }
 
         stepBack() {
@@ -536,6 +569,20 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (value === 2) return Stone.WHITE;
                 return Stone.EMPTY;
             });
+
+            // Determine last move index
+            const allMoves = gameState.moves || [];
+            if (allMoves.length > 0) {
+                const lastMove = allMoves[allMoves.length - 1].index;
+                // Only highlight if it's a valid placement (i.e. not a pass or resign)
+                if (lastMove >= 0) {
+                    this.lastMoveIndex = lastMove;
+                } else {
+                    this.lastMoveIndex = null;
+                }
+            } else {
+                this.lastMoveIndex = null;
+            }
 
             this.inScoringPhase = gameState.in_scoring_phase;
             const color = this.playerColor;
