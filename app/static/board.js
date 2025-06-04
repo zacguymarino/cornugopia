@@ -41,6 +41,9 @@ document.addEventListener("DOMContentLoaded", function () {
             // most recent move
             this.lastMoveIndex = null;
 
+            // Hover state
+            this.hoverIndex = null;
+
             //Game review stuff
             this.reviewIndex = null;
             this.originalGameState = null;
@@ -48,6 +51,13 @@ document.addEventListener("DOMContentLoaded", function () {
             this.resizeCanvas();
             window.addEventListener("resize", () => this.resizeCanvas());
             this.canvas.addEventListener("click", (event) => this.handleClick(event));
+            this.canvas.addEventListener("mousemove", (evt) => this.handleMouseMove(evt));
+            this.canvas.addEventListener("mouseleave", () => {
+                if (this.hoverIndex !== null) {
+                    this.hoverIndex = null;
+                    this.redrawStones();
+                }
+            });
         }
 
         getWebsocketUrl(path) {
@@ -150,11 +160,30 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         resizeCanvas() {
-            const maxSize = window.innerWidth > 768 ? 600 : window.innerWidth - 40; // extra padding on mobile
-            const size = Math.min(maxSize, window.innerHeight - 150);
-            this.canvas.width = size;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+
+            // Compute “available” width and height:
+            const availableWidth  = Math.max(0, vw  - 20);
+            const availableHeight = Math.max(0, vh  - 20);
+
+            // On desktop (vw > 768), we’ll let the board go up to 90% of whichever is smaller.
+            // On mobile (vw ≤ 768), we’ll let it fill the availableWidth (i.e. viewport-20px).
+            let size;
+            if (vw > 768) {
+                // 90% of availableWidth vs. 90% of availableHeight, pick the smaller
+                size = Math.min( availableWidth  * 0.9, 
+                                availableHeight * 0.9 );
+            } else {
+                // On narrow screens, just fit to (viewport – 20px), but no more than availableHeight
+                size = Math.min( availableWidth, availableHeight );
+            }
+
+            // Finally, apply to <canvas>
+            this.canvas.width  = size;
             this.canvas.height = size;
             this.cellSize = size / (this.size + 1);
+
             this.redrawStones();
         }
         
@@ -185,6 +214,37 @@ document.addEventListener("DOMContentLoaded", function () {
             }
 
             this.drawStarPoints();
+
+            const letterSource = [
+                "A","B","C","D","E","F","G","H",
+                "J","K","L","M","N","O","P","Q","R","S","T"
+            ];
+            // For any size (9, 13, 19), we take the first `size` entries from letterSource
+            const colLabels = letterSource.slice(0, size);
+
+            ctx.fillStyle = "black";
+            ctx.font = `${Math.floor(cellSize / 2)}px sans-serif`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+
+            for (let i = 0; i < size; i++) {
+                const x = (i + 1) * cellSize;
+                const letter = colLabels[i];
+
+                // Top label (y = cellSize/2)
+                ctx.fillText(letter, x, cellSize / 2);
+                // Bottom label (y = canvas.height - cellSize/2)
+                ctx.fillText(letter, x, canvas.height - cellSize / 2);
+
+                // Row numbers: size - i  (so top row is “size”, bottom row is “1”)
+                const rowNum = (size - i).toString();
+                const y = (i + 1) * cellSize;
+
+                // Left label (x = cellSize/2)
+                ctx.fillText(rowNum, cellSize / 2, y);
+                // Right label (x = canvas.width - cellSize/2)
+                ctx.fillText(rowNum, canvas.width - cellSize / 2, y);
+            }
         }
 
         /** Draw star points (hoshi) */
@@ -218,6 +278,32 @@ document.addEventListener("DOMContentLoaded", function () {
                 ctx.arc(x * cellSize, y * cellSize, cellSize / 6, 0, Math.PI * 2);
                 ctx.fill();
             });
+        }
+
+        handleMouseMove(event) {
+            const rect = this.canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            // Convert to grid coordinates
+            let gridX = Math.round(x / this.cellSize) - 1;
+            let gridY = Math.round(y / this.cellSize) - 1;
+
+            // If outside the board, clear hoverIndex
+            if (gridX < 0 || gridX >= this.size || gridY < 0 || gridY >= this.size) {
+                if (this.hoverIndex !== null) {
+                    this.hoverIndex = null;
+                    this.redrawStones();
+                }
+                return;
+            }
+
+            const idx = this.getIndex(gridX, gridY);
+            // Only update/redraw if it actually changed
+            if (idx !== this.hoverIndex) {
+                this.hoverIndex = idx;
+                this.redrawStones();
+            }
         }
 
         handleClick(event) {
@@ -353,9 +439,16 @@ document.addEventListener("DOMContentLoaded", function () {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ player_id: playerId, index: index })
-            }).then(response => {
+            }).then(async response => {
                 if (!response.ok) {
-                    response.json().then(data => alert(`Error: ${data.detail}`));
+                    const data = await response.json();
+                    const msg = data.detail || "Unknown error";
+
+                    if (msg.toLowerCase().includes("not your turn")) {
+                        return;
+                    }
+
+                    alert(`Error: ${msg}`);
                 }
             }).catch(error => console.error("Failed to send move:", error));
         }
@@ -448,6 +541,22 @@ document.addEventListener("DOMContentLoaded", function () {
                     this.ctx.stroke();
                     this.ctx.restore();
                 }
+            }
+            if (
+                this.hoverIndex !== null &&
+                !this.inScoringPhase && 
+                this.board[this.hoverIndex] === Stone.EMPTY
+            ) {
+                const { x: hx, y: hy } = this.getCanvasCoords(this.hoverIndex);
+                this.ctx.save();
+                // Pick a neutral preview color (e.g. gray with 50% opacity)
+                this.ctx.fillStyle = "rgba(80, 80, 80, 0.3)";
+                // Draw a circle slightly smaller than a real stone
+                const radius = this.cellSize / 2.2;
+                this.ctx.beginPath();
+                this.ctx.arc(hx, hy, radius, 0, 2 * Math.PI);
+                this.ctx.fill();
+                this.ctx.restore();
             }
         }
 

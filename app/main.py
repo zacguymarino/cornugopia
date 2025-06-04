@@ -310,8 +310,10 @@ async def make_move(game_id: str, request: Request):
             if len(game.players) < 2:
                 raise HTTPException(status_code=400, detail="Waiting for the second player to join")
 
-        # Determine player's color
+        # Determine player's color and check turn
         player_color = Stone(game.players[player_id])
+        if player_color != game.current_turn:
+            raise HTTPException(status_code=400, detail="Not your turn")
 
         # Attempt to make the move
         if game.is_valid_move(index, player_color):
