@@ -28,13 +28,32 @@ import {
       this.resizeCanvas();
       window.addEventListener("resize", () => this.resizeCanvas());
     }
-  
+
     resizeCanvas() {
-      const maxSize = window.innerWidth > 768 ? 600 : window.innerWidth - 40;
-      const side = Math.min(maxSize, window.innerHeight - 150);
-      this.canvas.width = side;
-      this.canvas.height = side;
-      this.cellSize = side / (this.size + 1);
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      // Compute “available” width and height:
+      const availableWidth  = Math.max(0, vw  - 20);
+      const availableHeight = Math.max(0, vh  - 20);
+
+      // On desktop (vw > 768), we’ll let the board go up to 90% of whichever is smaller.
+      // On mobile (vw ≤ 768), we’ll let it fill the availableWidth (i.e. viewport-20px).
+      let size;
+      if (vw > 768) {
+          // 90% of availableWidth vs. 90% of availableHeight, pick the smaller
+          size = Math.min( availableWidth  * 0.9, 
+                          availableHeight * 0.9 );
+      } else {
+          // On narrow screens, just fit to (viewport – 20px), but no more than availableHeight
+          size = Math.min( availableWidth, availableHeight );
+      }
+
+      // Finally, apply to <canvas>
+      this.canvas.width  = size;
+      this.canvas.height = size;
+      this.cellSize = size / (this.size + 1);
+
       this.redrawStones();
     }
   

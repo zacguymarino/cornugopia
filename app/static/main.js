@@ -79,8 +79,39 @@ document.addEventListener("DOMContentLoaded", function () {
                     return;
                 }
 
-                gameIdDisplay.style.fontWeight = "600";
-                gameIdDisplay.textContent = `Game ID: ${data.game_id}`;
+                gameIdDisplay.innerHTML = "";
+
+                // Create a label span
+                const labelSpan = document.createElement("span");
+                labelSpan.textContent = "Your Game ID: ";
+                labelSpan.style.fontWeight = "600";
+
+                // Create a button whose text is the new game ID
+                const copyBtn = document.createElement("button");
+                copyBtn.textContent = data.game_id;
+                copyBtn.style.cursor = "pointer";
+                copyBtn.style.fontWeight = "600";
+                copyBtn.title = "Click to copy Game ID";
+
+                // When clicked, copy to clipboard and show temporary “Copied!” feedback
+                copyBtn.addEventListener("click", async () => {
+                    try {
+                        await navigator.clipboard.writeText(data.game_id);
+                        copyBtn.textContent = "Copied!";
+                        setTimeout(() => {
+                            copyBtn.textContent = data.game_id;
+                        }, 1500);
+                    } catch (e) {
+                        console.error("Clipboard write failed:", e);
+                        alert("Could not copy automatically—please select & copy the ID manually.");
+                    }
+                });
+
+                // Insert that button under gameIdDisplay
+                gameIdDisplay.append(labelSpan, copyBtn);
+
+                // 3) Autofill the “join” input so creator can immediately join
+                gameIdInput.value = data.game_id;
             } else {
                 alert(data.detail || "Failed to create game.");
                 console.error("Error creating game:", data.detail || data.error);
