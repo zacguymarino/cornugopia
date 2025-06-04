@@ -20,6 +20,7 @@ from redis_client import redis_client
 from typing import Optional
 from sqlalchemy import func
 from sqlalchemy.future import select
+from sweep import sweep_stale_games
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -37,6 +38,18 @@ profanity.load_censor_words()
 
 class CreateGameRequest(BaseModel):
     board_size: int
+
+### ON STARTUP HOOK ###
+@app.on_event("startup")
+async def start_sweeper():
+    print("Starting game sweeper...")
+    asyncio.create_task(
+        sweep_stale_games(
+            redis_client,
+            sweep_interval_secs=3600,
+            stale_threshold_secs=86400
+        )
+    )
 
 ### GET SETTINGS ENDPOINT ###
 @app.get("/settings")
