@@ -1,5 +1,6 @@
 from enum import Enum
 import copy
+import time
 
 class Stone(Enum):
     EMPTY = 0
@@ -47,6 +48,7 @@ class GameState:
         self.handicap_stones = None
         self.handicap_placements = []
         self.estimated_ranks = {}
+        self.created_at = time.time()
 
     def set_colors_randomized(self, randomized: bool):
         self.colors_randomized = bool(randomized)
@@ -355,7 +357,8 @@ class GameState:
             "allow_handicaps": self.allow_handicaps,
             "handicap_stones": self.handicap_stones,
             "handicap_placements": self.handicap_placements,
-            "estimated_ranks": self.estimated_ranks
+            "estimated_ranks": self.estimated_ranks,
+            "created_at": self.created_at
         }
 
     @staticmethod
@@ -396,4 +399,5 @@ class GameState:
         game.handicap_stones = data.get("handicap_stones", None)
         game.handicap_placements = data.get("handicap_placements", [])
         game.estimated_ranks = data.get("estimated_ranks", {})
+        game.created_at = data.get("created_at") or time.time()
         return game
